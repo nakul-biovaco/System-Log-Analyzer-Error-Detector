@@ -59,7 +59,7 @@
       <div class="menu-item" data-menu="tools">
         <span>Tools</span>
         <div class="dropdown-menu">
-          <button class="dropdown-opt" id="menuRunTests">Run Automated Self-Diagnosis (14 Checks)</button>
+          <button class="dropdown-opt" id="menuRunTests">Run Automated Self-Diagnosis (16 Checks)</button>
           <button class="dropdown-opt" id="menuNoiseFilter">Toggle Background Noise Filter</button>
         </div>
       </div>
@@ -202,6 +202,7 @@
                 <div class="telem-row"><span>Host Platform:</span> <strong id="telemOS">macOS Darwin</strong></div>
                 <div class="telem-row"><span>Throughput:</span> <strong id="telemThroughput">0 EPS</strong></div>
                 <div class="telem-row"><span>Parse Integrity:</span> <strong id="telemFidelity">100.0%</strong></div>
+                <div class="telem-row"><span>Working Set:</span> <strong id="telemWorkingSet">5,000 Cap</strong></div>
                 <div class="telem-row"><span>Process Memory:</span> <strong id="telemMemory">2.2 MB RSS</strong></div>
               </div>
             </div>
@@ -285,6 +286,10 @@
                       <tr>
                         <td>Structured System Records:</td>
                         <td class="text-right font-mono text-green" id="dashParsed">0</td>
+                      </tr>
+                      <tr>
+                        <td>Auto-Repaired Records:</td>
+                        <td class="text-right font-mono text-blue" id="dashRepaired">0</td>
                       </tr>
                       <tr>
                         <td>Unstructured Extracted Messages:</td>

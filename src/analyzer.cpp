@@ -102,6 +102,7 @@ AnalysisStats compute_statistics(
     for (const auto& r : records) {
         if (r.parse_status == ParseStatus::PARSED) stats.fully_parsed_events++;
         else if (r.parse_status == ParseStatus::PARTIAL) stats.partial_events++;
+        else if (r.parse_status == ParseStatus::REPAIRED) stats.repaired_events++;
         else stats.invalid_events++;
 
         stats.severity_distribution[r.level]++;
@@ -122,7 +123,7 @@ AnalysisStats compute_statistics(
         }
     }
 
-    stats.valid_events = stats.fully_parsed_events + stats.partial_events;
+    stats.valid_events = stats.fully_parsed_events + stats.partial_events + stats.repaired_events;
 
     std::vector<std::pair<std::string, std::size_t>> error_pairs(err_freq.begin(), err_freq.end());
     std::sort(error_pairs.begin(), error_pairs.end(), [](const auto& a, const auto& b) {

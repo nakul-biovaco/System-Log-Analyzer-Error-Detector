@@ -9,6 +9,7 @@
 #include "analyzer.hpp"
 #include "detection.hpp"
 #include "risk.hpp"
+#include "recovery.hpp"
 
 static bool test_level_normalization() {
     return normalize_level("INFO") == Level::INFO &&
@@ -64,8 +65,8 @@ static bool test_syslog_fallback_parsing() {
 
 static bool test_single_pass_stats_calculation() {
     std::vector<LogRecord> records = {
-        {"E1", parse_timestamp("2026-09-05 10:00:00"), "10:00:00", Level::INFO, "sys ok", Category::SYSTEM, "raw1", ParseStatus::PARSED, "general"},
-        {"E2", parse_timestamp("2026-09-05 10:01:00"), "10:01:00", Level::ERROR, "err msg", Category::NETWORK, "raw2", ParseStatus::PARSED, "general"}
+        {"E1", parse_timestamp("2026-09-05 10:00:00"), "10:00:00", Level::INFO, "sys ok", Category::SYSTEM, "raw1", ParseStatus::PARSED, "general", ""},
+        {"E2", parse_timestamp("2026-09-05 10:01:00"), "10:01:00", Level::ERROR, "err msg", Category::NETWORK, "raw2", ParseStatus::PARSED, "general", ""}
     };
     AnalysisStats stats = compute_statistics(records, 2, 0);
     return stats.total_events == 2 &&
@@ -85,7 +86,7 @@ static bool test_fault_injection_zero_events_div_zero_guard() {
 static bool test_fault_injection_single_event_duration_zero() {
     auto tp = parse_timestamp("2026-09-05 10:00:00");
     std::vector<LogRecord> records = {
-        {"E1", tp, "10:00:00", Level::INFO, "single", Category::SYSTEM, "raw", ParseStatus::PARSED, "general"}
+        {"E1", tp, "10:00:00", Level::INFO, "single", Category::SYSTEM, "raw", ParseStatus::PARSED, "general", ""}
     };
     auto buckets = compute_time_buckets(records, *tp, *tp, 4);
     return buckets.size() == 1;
@@ -103,7 +104,8 @@ static bool test_rule_r001_repeated_error() {
             Category::NETWORK,
             "raw",
             ParseStatus::PARSED,
-            "general"
+            "general",
+            ""
         });
     }
     AnalysisStats stats = compute_statistics(records);
@@ -116,7 +118,7 @@ static bool test_rule_r001_repeated_error() {
 
 static bool test_rule_r002_critical_event_and_risk_override() {
     std::vector<LogRecord> records = {
-        {"E1", parse_timestamp("2026-09-05 10:00:00"), "10:00:00", Level::CRITICAL, "kernel panic", Category::SYSTEM, "raw", ParseStatus::PARSED, "general"}
+        {"E1", parse_timestamp("2026-09-05 10:00:00"), "10:00:00", Level::CRITICAL, "kernel panic", Category::SYSTEM, "raw", ParseStatus::PARSED, "general", ""}
     };
     AnalysisStats stats = compute_statistics(records);
     auto dets = run_detection(stats);
@@ -131,12 +133,12 @@ static bool test_rule_r002_critical_event_and_risk_override() {
 static bool test_rule_r005_time_windowed_spike() {
     auto base_tp = *parse_timestamp("2026-09-05 12:00:00");
     std::vector<LogRecord> records = {
-        {"E1", base_tp, "12:00:00", Level::INFO, "ok", Category::SYSTEM, "raw", ParseStatus::PARSED, "general"},
-        {"E2", base_tp + std::chrono::minutes(10), "12:10:00", Level::INFO, "ok", Category::SYSTEM, "raw", ParseStatus::PARSED, "general"},
-        {"E3", base_tp + std::chrono::minutes(15), "12:15:00", Level::ERROR, "spike err", Category::NETWORK, "raw", ParseStatus::PARSED, "general"},
-        {"E4", base_tp + std::chrono::minutes(15) + std::chrono::seconds(1), "12:15:01", Level::ERROR, "spike err", Category::NETWORK, "raw", ParseStatus::PARSED, "general"},
-        {"E5", base_tp + std::chrono::minutes(15) + std::chrono::seconds(2), "12:15:02", Level::ERROR, "spike err", Category::NETWORK, "raw", ParseStatus::PARSED, "general"},
-        {"E6", base_tp + std::chrono::minutes(20), "12:20:00", Level::INFO, "ok", Category::SYSTEM, "raw", ParseStatus::PARSED, "general"}
+        {"E1", base_tp, "12:00:00", Level::INFO, "ok", Category::SYSTEM, "raw", ParseStatus::PARSED, "general", ""},
+        {"E2", base_tp + std::chrono::minutes(10), "12:10:00", Level::INFO, "ok", Category::SYSTEM, "raw", ParseStatus::PARSED, "general", ""},
+        {"E3", base_tp + std::chrono::minutes(15), "12:15:00", Level::ERROR, "spike err", Category::NETWORK, "raw", ParseStatus::PARSED, "general", ""},
+        {"E4", base_tp + std::chrono::minutes(15) + std::chrono::seconds(1), "12:15:01", Level::ERROR, "spike err", Category::NETWORK, "raw", ParseStatus::PARSED, "general", ""},
+        {"E5", base_tp + std::chrono::minutes(15) + std::chrono::seconds(2), "12:15:02", Level::ERROR, "spike err", Category::NETWORK, "raw", ParseStatus::PARSED, "general", ""},
+        {"E6", base_tp + std::chrono::minutes(20), "12:20:00", Level::INFO, "ok", Category::SYSTEM, "raw", ParseStatus::PARSED, "general", ""}
     };
     AnalysisStats stats = compute_statistics(records);
     auto dets = run_detection(stats);
@@ -144,6 +146,40 @@ static bool test_rule_r005_time_windowed_spike() {
         if (d.rule_id == "R005") return true;
     }
     return false;
+}
+
+static bool test_auto_repair_recovery() {
+    RecoveryMetrics metrics;
+    std::string malformed = "Database connection timed out during query execution";
+    auto repaired = auto_repair_log_record(malformed, 42, std::optional<std::string>("2026-09-05 14:30:00"), metrics);
+    return repaired.parse_status == ParseStatus::REPAIRED &&
+           repaired.timestamp_str == "2026-09-05 14:30:00" &&
+           repaired.level == Level::ERROR &&
+           repaired.category == Category::NETWORK &&
+           metrics.malformed_sanitized == 1 &&
+           metrics.timestamps_imputed == 1;
+}
+
+static bool test_sliding_ring_buffer_capping() {
+    std::vector<LogRecord> large_set;
+    for (int i = 0; i < 6000; ++i) {
+        large_set.push_back({
+            "E" + std::to_string(i),
+            parse_timestamp("2026-09-05 10:00:00"),
+            "10:00:00",
+            Level::INFO,
+            "stream event",
+            Category::SYSTEM,
+            "raw line",
+            ParseStatus::PARSED,
+            "syslog",
+            ""
+        });
+    }
+    auto capped = apply_sliding_ring_buffer(large_set, 5000);
+    return capped.size() == 5000 &&
+           capped.front().event_id == "E1000" &&
+           capped.back().event_id == "E5999";
 }
 
 bool run_all_tests() {
@@ -168,7 +204,9 @@ bool run_all_tests() {
         {"Fault-Injection Single Event Duration Zero", test_fault_injection_single_event_duration_zero},
         {"Rule R001 Repeated Error", test_rule_r001_repeated_error},
         {"Rule R002 Critical Event and Risk Floor", test_rule_r002_critical_event_and_risk_override},
-        {"Rule R005 Time-Windowed Spike", test_rule_r005_time_windowed_spike}
+        {"Rule R005 Time-Windowed Spike", test_rule_r005_time_windowed_spike},
+        {"Auto-Repair Timestamp & Level Inference", test_auto_repair_recovery},
+        {"Constant-Memory Sliding Ring Buffer", test_sliding_ring_buffer_capping}
     };
 
     std::size_t passed = 0;
@@ -193,7 +231,8 @@ bool run_all_tests() {
         std::cout << "[PASSED] All " << passed << "/" << total << " tests completed successfully in "
                   << std::fixed << std::setprecision(4) << elapsed << "s.\n";
         std::cout << "Coverage: Ingestion, Multi-tier Parsers, Single-Pass Engine,\n";
-        std::cout << "          Rules R001-R005, Risk Bounds, Fault-Injection Guards.\n";
+        std::cout << "          Rules R001-R005, Risk Bounds, Fault-Injection Guards,\n";
+        std::cout << "          Self-Healing Auto-Repair, Constant-Memory Ring Buffer.\n";
     } else {
         std::cout << "[FAILED] " << (total - passed) << "/" << total << " tests failed.\n";
     }

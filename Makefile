@@ -14,6 +14,7 @@ SRCS = main.cpp \
        src/report.cpp \
        src/exporter.cpp \
        src/server.cpp \
+       src/recovery.cpp \
        src/tests.cpp
 
 BUILD_DIR = build

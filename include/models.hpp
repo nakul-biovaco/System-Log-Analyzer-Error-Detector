@@ -28,6 +28,7 @@ enum class Category {
 enum class ParseStatus {
     PARSED,
     PARTIAL,
+    REPAIRED,
     INVALID
 };
 
@@ -56,6 +57,7 @@ inline std::string parse_status_to_string(ParseStatus st) {
     switch (st) {
         case ParseStatus::PARSED: return "PARSED";
         case ParseStatus::PARTIAL: return "PARTIAL";
+        case ParseStatus::REPAIRED: return "REPAIRED";
         default: return "INVALID";
     }
 }
@@ -70,6 +72,7 @@ struct LogRecord {
     std::string raw_message;
     ParseStatus parse_status{ParseStatus::INVALID};
     std::string source{"general"};
+    std::string repair_note;
 };
 
 struct DetectionResult {
@@ -109,6 +112,11 @@ struct AnalysisStats {
     std::size_t invalid_events{0};
     std::size_t fully_parsed_events{0};
     std::size_t partial_events{0};
+    std::size_t repaired_events{0};
+    std::size_t timestamps_imputed{0};
+    std::size_t levels_inferred{0};
+    std::size_t tracebacks_stitched{0};
+    std::size_t active_working_set_capped{0};
     std::unordered_map<Level, std::size_t> severity_distribution;
     std::unordered_map<Category, std::size_t> category_summary;
     std::vector<std::pair<std::string, std::size_t>> top_errors;

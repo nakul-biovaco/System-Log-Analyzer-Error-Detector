@@ -24,6 +24,7 @@
 #include "include/alerts.hpp"
 #include "include/risk.hpp"
 #include "include/recommendations.hpp"
+#include "include/recovery.hpp"
 #include "include/tests.hpp"
 
 static std::atomic<bool> g_running{false};
@@ -63,35 +64,64 @@ static std::string read_file_content(const std::string& filepath) {
 }
 
 static std::string build_analysis_json(const std::vector<std::string>& raw_lines) {
+    std::size_t stitched_count = 0;
+    std::vector<std::string> sanitized_lines = stitch_multiline_tracebacks(raw_lines, stitched_count);
     std::vector<LogRecord> records;
-    records.reserve(raw_lines.size());
+    records.reserve(sanitized_lines.size());
     std::size_t noise = 0;
+    RecoveryMetrics recovery_metrics;
+    recovery_metrics.tracebacks_stitched = stitched_count;
 
-    for (std::size_t i = 0; i < raw_lines.size(); ++i) {
-        auto rec = parse_syslog_format(raw_lines[i], i + 1);
+    std::optional<std::string> previous_valid_timestamp;
+
+    for (std::size_t i = 0; i < sanitized_lines.size(); ++i) {
+        auto rec = parse_syslog_format(sanitized_lines[i], i + 1);
         if (rec.has_value()) {
+            if (!rec->timestamp_str.empty() && rec->timestamp_str != "N/A") {
+                previous_valid_timestamp = rec->timestamp_str;
+            }
             records.push_back(std::move(*rec));
         } else {
-            auto fallback = parse_simple_format(raw_lines[i], i + 1);
+            auto fallback = parse_simple_format(sanitized_lines[i], i + 1);
             if (fallback.parse_status != ParseStatus::INVALID) {
+                if (!fallback.timestamp_str.empty() && fallback.timestamp_str != "N/A") {
+                    previous_valid_timestamp = fallback.timestamp_str;
+                }
                 records.push_back(std::move(fallback));
             } else {
-                noise++;
+                auto repaired = auto_repair_log_record(sanitized_lines[i], i + 1, previous_valid_timestamp, recovery_metrics);
+                if (!repaired.timestamp_str.empty() && repaired.timestamp_str != "N/A") {
+                    previous_valid_timestamp = repaired.timestamp_str;
+                }
+                records.push_back(std::move(repaired));
             }
         }
     }
 
     AnalysisStats stats = compute_statistics(records, raw_lines.size(), noise);
+    stats.repaired_events = recovery_metrics.malformed_sanitized;
+    stats.timestamps_imputed = recovery_metrics.timestamps_imputed;
+    stats.levels_inferred = recovery_metrics.levels_inferred;
+    stats.tracebacks_stitched = recovery_metrics.tracebacks_stitched;
+
     auto detections = run_detection(stats);
     auto alerts = build_alerts(detections);
     auto risk = calculate_risk_score(stats);
     auto recs = generate_recommendations(stats, detections);
+
+    records = apply_sliding_ring_buffer(records, 5000);
+    stats.active_working_set_capped = records.size();
 
     std::ostringstream ss;
     ss << "{\n";
     ss << "  \"total_records\": " << stats.total_events << ",\n";
     ss << "  \"parsed_records\": " << stats.fully_parsed_events << ",\n";
     ss << "  \"fallback_records\": " << stats.partial_events << ",\n";
+    ss << "  \"repaired_records\": " << stats.repaired_events << ",\n";
+    ss << "  \"timestamps_imputed\": " << stats.timestamps_imputed << ",\n";
+    ss << "  \"levels_inferred\": " << stats.levels_inferred << ",\n";
+    ss << "  \"tracebacks_stitched\": " << stats.tracebacks_stitched << ",\n";
+    ss << "  \"active_working_set_capped\": " << stats.active_working_set_capped << ",\n";
     ss << "  \"noise_records_discarded\": " << noise << ",\n";
     ss << "  \"risk_score\": " << risk.score << ",\n";
     ss << "  \"risk_band\": \"" << escape_json_str(risk.band) << "\",\n";
@@ -145,7 +175,7 @@ static std::string build_analysis_json(const std::vector<std::string>& raw_lines
     ss << "  ],\n";
 
     ss << "  \"records\": [\n";
-    std::size_t max_out = std::min(records.size(), static_cast<std::size_t>(2000));
+    std::size_t max_out = std::min(records.size(), static_cast<std::size_t>(5000));
     for (std::size_t i = 0; i < max_out; ++i) {
         const auto& r = records[i];
         ss << "    {\"seq\": " << (i + 1)
@@ -154,7 +184,9 @@ static std::string build_analysis_json(const std::vector<std::string>& raw_lines
            << ", \"category\": \"" << category_to_string(r.category) << "\""
            << ", \"message\": \"" << escape_json_str(r.message) << "\""
            << ", \"raw_line\": \"" << escape_json_str(r.raw_message) << "\""
-           << ", \"is_fallback\": " << (r.parse_status != ParseStatus::PARSED ? "true" : "false")
+           << ", \"is_fallback\": " << (r.parse_status == ParseStatus::PARTIAL ? "true" : "false")
+           << ", \"is_repaired\": " << (r.parse_status == ParseStatus::REPAIRED ? "true" : "false")
+           << ", \"repair_note\": \"" << escape_json_str(r.repair_note) << "\""
            << "}";
         if (i + 1 < max_out) ss << ",";
         ss << "\n";

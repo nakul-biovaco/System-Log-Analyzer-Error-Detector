@@ -1,0 +1,12 @@
+2026-09-05 15:00:01 [INFO] Service gateway initialized successfully on port 8080
+2026-09-05 15:00:10 [INFO] Client connection accepted from 192.168.1.52
+2026-09-05 15:01:22 [ERROR] Unhandled exception occurred in worker execution thread
+    Traceback (most recent call last):
+    File "/opt/service/app.py", line 142, in process_transaction
+        conn = pool.get_connection(timeout=5)
+    File "/opt/service/db.py", line 88, in get_connection
+        raise TimeoutError("Database connection timed out after 5000ms")
+2026-09-05 15:02:00 [WARNING] Health check probe delayed: worker thread pool exhausted
+Database query failed with dead lock detected on customer table
+[CRITICAL] Kernel out of memory: killed process 9012 (python3) score 95
+2026-09-05 15:04:10 [INFO] Process supervisor restarting worker daemon 9012
