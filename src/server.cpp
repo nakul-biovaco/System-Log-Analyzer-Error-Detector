@@ -293,7 +293,7 @@ static void server_loop(int port) {
             if (!g_running) break;
             continue;
         }
-        handle_client(client_fd);
+        std::thread(handle_client, client_fd).detach();
     }
 
     if (g_listen_fd >= 0) {

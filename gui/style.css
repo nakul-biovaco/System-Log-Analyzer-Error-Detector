@@ -118,11 +118,12 @@ body {
   border-radius: 2px;
 }
 
-.menu-item:hover {
-  background-color: #e5f1fb;
+.menu-item:hover,
+.menu-item.open {
+  background-color: #cce8ff;
 }
 
-.menu-item:hover .dropdown-menu {
+.menu-item.open .dropdown-menu {
   display: block;
 }
 
@@ -851,3 +852,17 @@ body {
 .text-green { color: var(--color-success); font-weight: 600; }
 .text-amber { color: var(--color-warning); font-weight: 600; }
 .text-gray { color: var(--text-muted); }
+
+.toast-popup {
+  position: fixed;
+  bottom: 28px;
+  right: 20px;
+  background: #242424;
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 2px;
+  font-size: 11px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 3000;
+  border-left: 3px solid var(--win-blue);
+}
