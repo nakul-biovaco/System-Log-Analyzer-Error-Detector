@@ -217,7 +217,8 @@ Results are rendered simultaneously:
 ├── reports/                     # Directory for exported JSON reports
 └── docs/                        # Technical specifications
     ├── Commands.txt             # Command-line cheatsheet
-    └── ARCHITECTURE.md          # Deep-dive architecture and algorithm document
+    ├── ARCHITECTURE.md          # Deep-dive architecture and algorithm document
+    └── WORKING.md               # Deep humanized working guide and mechanics
 ```
 
 ---
@@ -266,6 +267,7 @@ Spawns the embedded telemetry server on port 8765 and opens the native desktop a
 
 - **[docs/Commands.txt](docs/Commands.txt)**: Comprehensive command cheatsheet for all operational flags and shortcuts.
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Mathematical models, algorithmic complexity analysis, non-blocking descriptor polling, and error recovery specifications.
+- **[docs/WORKING.md](docs/WORKING.md)**: Deep humanized engineering guide explaining exact internal working mechanisms from ingestion to self-healing repair, constant-memory ring buffers, and terminal integration.
 
 ---
 
