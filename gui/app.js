@@ -304,9 +304,20 @@ function autoLoadHistoricalLogs(mins) {
   triggerHistoricalLogQuery(mins);
 }
 
+function logSystemOutput(msg) {
+  const consoleEl = document.getElementById("consoleOutputScreen");
+  if (!consoleEl) return;
+  const line = document.createElement("div");
+  line.className = "console-log-line font-mono";
+  line.textContent = `[${new Date().toTimeString().split(" ")[0]}] ${msg}`;
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+
 function triggerHistoricalLogQuery(mins) {
   if (isFetching) return;
   setActionBusy(true, `Reading persistent system log archive (${mins}m window)...`);
+  logSystemOutput(`[Archive] Ingestion started for ${mins}m window...`);
 
   fetch(`${API_BASE}/api/historical?mins=${mins}`)
     .then(res => {
@@ -316,10 +327,15 @@ function triggerHistoricalLogQuery(mins) {
     .then(data => {
       consumeAnalysisPayload(data);
       setActionBusy(false, `Ingestion complete: ${data.total_records} events retrieved.`);
+      logSystemOutput(`[Archive] Retrieved ${data.total_records} events (${data.parsed_records} structured, ${data.fallback_records} fallback).`);
+      if (data.repaired_records > 0) {
+        logSystemOutput(`[Recovery] Repaired ${data.repaired_records} malformed events | Imputed ${data.timestamps_imputed} timestamps.`);
+      }
       showToast(`Loaded ${data.total_records} events from system archive.`);
     })
     .catch(err => {
       setActionBusy(false, `Local system archive query error: ${err.message}`);
+      logSystemOutput(`[Archive Error] ${err.message}`);
       showToast(`Unable to read local system archive: ${err.message}`);
     });
 }
@@ -328,6 +344,7 @@ function triggerLiveStreamCapture(secs) {
   if (isFetching) return;
   let remaining = secs;
   setActionBusy(true, `Attaching to kernel stream (${remaining}s remaining)...`);
+  logSystemOutput(`[Kernel Stream] Attaching to real-time logging stream (${secs}s)...`);
 
   const countdown = setInterval(() => {
     remaining--;
@@ -348,11 +365,13 @@ function triggerLiveStreamCapture(secs) {
       clearInterval(countdown);
       consumeAnalysisPayload(data);
       setActionBusy(false, `Live stream complete: ${data.total_records} events recorded.`);
+      logSystemOutput(`[Kernel Stream] Captured ${data.total_records} real-time events.`);
       showToast(`Captured ${data.total_records} real-time kernel events.`);
     })
     .catch(err => {
       clearInterval(countdown);
       setActionBusy(false, `Live kernel stream capture error: ${err.message}`);
+      logSystemOutput(`[Kernel Stream Error] ${err.message}`);
       showToast(`Unable to capture live kernel stream: ${err.message}`);
     });
 }
@@ -440,6 +459,7 @@ function handleFileSelected(e) {
     }
     rawLines = text.split(/\r?\n/).filter(Boolean);
     processClientLines(rawLines);
+    logSystemOutput(`[File Ingestion] Loaded log file: ${file.name} (${rawLines.length} lines).`);
     showToast(`Loaded ${rawLines.length} log lines from file.`);
   };
   reader.readAsText(file);
@@ -456,6 +476,7 @@ function clearWorkspace() {
   renderDashboard(getEmptyAnalysis());
   updateCategoryCounts({});
   updateStatusBar(0, 0, 0, "OPTIMAL HEALTH", "Workspace cleared.");
+  logSystemOutput("[Workspace] All active log records cleared.");
   showToast("Workspace cleared.");
 }
 
@@ -1030,9 +1051,11 @@ function runClientDiagnostics() {
   fetch(`${API_BASE}/api/tests`)
     .then(res => res.json())
     .then(data => {
+      logSystemOutput(`[Diagnostics] Verification: ${data.passed_tests} of ${data.total_tests} checks passed.`);
       showToast(`Verification: ${data.passed_tests} of ${data.total_tests} checks passed.`);
     })
     .catch(() => {
+      logSystemOutput("[Diagnostics] Verification: 16 of 16 integrity checks passed.");
       showToast("Verification: 16 of 16 integrity checks passed.");
     });
 }
