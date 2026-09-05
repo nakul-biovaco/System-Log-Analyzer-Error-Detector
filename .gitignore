@@ -1,0 +1,10 @@
+*.o
+build/
+bin/
+reports/*.json
+reports/*.txt
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.exe

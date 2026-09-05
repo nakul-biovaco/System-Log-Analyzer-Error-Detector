@@ -1,0 +1,83 @@
+================================================================================
+          SYSTEM LOG ANALYZER & ERROR DETECTOR - COMMAND CHEATSHEET
+================================================================================
+
+--------------------------------------------------------------------------------
+1. NAVIGATE TO PROJECT DIRECTORY (cd)
+--------------------------------------------------------------------------------
+cd "/Users/nakulamundhada23/Desktop/System Log Analyzer & Error Detector"
+
+
+--------------------------------------------------------------------------------
+2. CLEAN & COMPILE PROJECT (Build C++17 Binary)
+--------------------------------------------------------------------------------
+make clean && make all
+
+# Binary generated at: ./bin/log_analyzer
+
+
+--------------------------------------------------------------------------------
+3. RUN AUTOMATED SELF-DIAGNOSIS & FAULT-INJECTION TEST SUITE (14/14 Tests)
+--------------------------------------------------------------------------------
+./bin/log_analyzer --test
+
+
+--------------------------------------------------------------------------------
+4. RUN BUILT-IN DEMO & EXPORT STRUCTURED JSON REPORT
+--------------------------------------------------------------------------------
+# Demo analysis on terminal:
+./bin/log_analyzer --demo
+
+# Demo analysis with automatic JSON report export:
+./bin/log_analyzer --demo --export reports/demo.json
+
+
+--------------------------------------------------------------------------------
+5. ANALYZE SPECIFIC LOG FILES (CLI Mode)
+--------------------------------------------------------------------------------
+# Analyze Authentication / Security brute-force attack log:
+./bin/log_analyzer --file sample_logs/auth_attack.log
+
+# Analyze Error Spike anomaly log:
+./bin/log_analyzer --file sample_logs/spike_anomaly.log
+
+# Analyze Standard Unix/macOS system log:
+./bin/log_analyzer --file sample_logs/system.log
+
+# Analyze file and export report:
+./bin/log_analyzer --file sample_logs/auth_attack.log --export reports/auth_report.json
+
+
+--------------------------------------------------------------------------------
+6. AUTOMATIC HOST PLATFORM LOG INGESTION (macOS / Linux / Windows)
+--------------------------------------------------------------------------------
+./bin/log_analyzer --platform
+
+
+--------------------------------------------------------------------------------
+7. RUN INTERACTIVE CLI DASHBOARD MENU
+--------------------------------------------------------------------------------
+./bin/log_analyzer
+
+Interactive Menu Options:
+  1 -> Run Demo Analysis (Built-in sample logs)
+  2 -> Analyze Historical macOS Logs (log show trace)
+  3 -> Capture Real-Time Darwin Kernel Live Stream (log stream)
+  4 -> Enter Logs Manually (Paste/Type, type END on new line to finish)
+  5 -> Analyze Log File from Path
+  6 -> Search Loaded Logs by Keyword
+  7 -> Run Self-Diagnosis Tests
+  8 -> Exit
+
+
+--------------------------------------------------------------------------------
+8. VIEW CLI HELP & OPTIONS
+--------------------------------------------------------------------------------
+./bin/log_analyzer --help
+
+
+--------------------------------------------------------------------------------
+9. ONE-LINER COMPLETE RUN (Clean, Build, Test, and Demo)
+--------------------------------------------------------------------------------
+make clean && make all && ./bin/log_analyzer --test && ./bin/log_analyzer --demo
+================================================================================

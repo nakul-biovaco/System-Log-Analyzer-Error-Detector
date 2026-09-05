@@ -1,0 +1,12 @@
+2026-09-05 14:00:01 [INFO] System kernel initialization completed on host-alpha
+2026-09-05 14:00:05 [INFO] User alice authenticated successfully via ssh publickey
+2026-09-05 14:01:12 [WARNING] Storage space warning: volume /var at 87% utilization
+2026-09-05 14:02:15 [ERROR] Connection refused to database primary on port 5432
+2026-09-05 14:02:18 [ERROR] Connection refused to database primary on port 5432
+2026-09-05 14:02:22 [ERROR] Connection refused to database primary on port 5432
+2026-09-05 14:03:40 [WARNING] Resource threshold exceeded: process worker-3 memory at 92%
+2026-09-05 14:04:10 [ERROR] Authentication failure: invalid credentials for user admin
+2026-09-05 14:04:55 [ERROR] File read error: configuration path /etc/app/config.json not found
+2026-09-05 14:05:01 [CRITICAL] Kernel out of memory: terminated process 4102 (worker)
+2026-09-05 14:06:14 [INFO] Network interface en0 reconnected to default gateway
+2026-09-05 14:07:00 [ERROR] Network timeout after 10000ms while polling payment gateway
