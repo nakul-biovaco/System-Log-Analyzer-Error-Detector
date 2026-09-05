@@ -1316,6 +1316,11 @@ function setupTerminal() {
             activeTerminalOutElement.textContent += " ^C";
             activeTerminalOutElement.classList.add("err");
           }
+          const activeLine = document.getElementById("terminalActiveLine");
+          if (activeLine) activeLine.style.display = "flex";
+          terminalInput.value = "";
+          terminalInput.focus();
+          return;
         }
         const val = terminalInput.value;
         terminalInput.value = "";
@@ -1362,35 +1367,61 @@ function setupTerminal() {
 
 function clearTerminalScreen() {
   const historyEl = document.getElementById("terminalHistory");
+  const screenEl = document.getElementById("vscodeTerminalScreen");
+  const activeLine = document.getElementById("terminalActiveLine");
+  const terminalInput = document.getElementById("terminalInput");
   if (historyEl) {
     historyEl.innerHTML = "";
+  }
+  if (activeLine) {
+    activeLine.style.display = "flex";
+  }
+  if (terminalInput) {
+    terminalInput.value = "";
+    terminalInput.focus();
+  }
+  if (screenEl) {
+    screenEl.scrollTop = 0;
   }
 }
 
 function appendEmptyPromptLine() {
   const historyEl = document.getElementById("terminalHistory");
+  const screenEl = document.getElementById("vscodeTerminalScreen");
   if (!historyEl) return;
   const prompt = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
   const div = document.createElement("div");
   div.className = "term-entry";
   div.innerHTML = `<div class="term-entry-cmd"><span class="term-entry-prompt">${escapeHtml(prompt)}</span></div>`;
   historyEl.appendChild(div);
-  historyEl.scrollTop = historyEl.scrollHeight;
+  if (screenEl) {
+    screenEl.scrollTop = screenEl.scrollHeight;
+  }
 }
 
 function appendInterruptedLine(inputVal) {
   const historyEl = document.getElementById("terminalHistory");
+  const screenEl = document.getElementById("vscodeTerminalScreen");
+  const terminalInput = document.getElementById("terminalInput");
   if (!historyEl) return;
   const prompt = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
   const div = document.createElement("div");
   div.className = "term-entry";
   div.innerHTML = `<div class="term-entry-cmd"><span class="term-entry-prompt">${escapeHtml(prompt)}</span><span>${escapeHtml(inputVal)}</span><span style="color:#f14c4c; font-weight:600; margin-left:4px;">^C</span></div>`;
   historyEl.appendChild(div);
-  historyEl.scrollTop = historyEl.scrollHeight;
+  if (screenEl) {
+    screenEl.scrollTop = screenEl.scrollHeight;
+  }
+  if (terminalInput) {
+    terminalInput.focus();
+  }
 }
 
 function executeTerminalCommand(cmd) {
   const historyEl = document.getElementById("terminalHistory");
+  const screenEl = document.getElementById("vscodeTerminalScreen");
+  const activeLine = document.getElementById("terminalActiveLine");
+  const terminalInput = document.getElementById("terminalInput");
   if (!historyEl) return;
 
   const prompt = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
@@ -1408,7 +1439,13 @@ function executeTerminalCommand(cmd) {
   entry.appendChild(outLine);
 
   historyEl.appendChild(entry);
-  historyEl.scrollTop = historyEl.scrollHeight;
+  if (screenEl) {
+    screenEl.scrollTop = screenEl.scrollHeight;
+  }
+
+  if (activeLine) {
+    activeLine.style.display = "none";
+  }
 
   const controller = new AbortController();
   activeTerminalAbortController = controller;
@@ -1433,7 +1470,15 @@ function executeTerminalCommand(cmd) {
       if (data.exit_code !== 0) {
         outLine.classList.add("err");
       }
-      historyEl.scrollTop = historyEl.scrollHeight;
+      if (activeLine) {
+        activeLine.style.display = "flex";
+      }
+      if (terminalInput) {
+        terminalInput.focus();
+      }
+      if (screenEl) {
+        screenEl.scrollTop = screenEl.scrollHeight;
+      }
     })
     .catch(err => {
       if (err.name === "AbortError") {
@@ -1445,6 +1490,14 @@ function executeTerminalCommand(cmd) {
       }
       outLine.textContent = `Execution error: ${err.message}\n(Backend daemon communication error)`;
       outLine.classList.add("err");
-      historyEl.scrollTop = historyEl.scrollHeight;
+      if (activeLine) {
+        activeLine.style.display = "flex";
+      }
+      if (terminalInput) {
+        terminalInput.focus();
+      }
+      if (screenEl) {
+        screenEl.scrollTop = screenEl.scrollHeight;
+      }
     });
 }

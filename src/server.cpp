@@ -17,6 +17,8 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <poll.h>
 
 #include "include/models.hpp"
 #include "include/ingestion.hpp"
@@ -126,6 +128,11 @@ static std::pair<int, std::string> execute_shell_command(const std::string& cmd)
         dup2(pipefd[1], STDOUT_FILENO);
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
+        int null_fd = open("/dev/null", O_RDONLY);
+        if (null_fd >= 0) {
+            dup2(null_fd, STDIN_FILENO);
+            close(null_fd);
+        }
         execl("/bin/zsh", "zsh", "-c", cmd.c_str(), nullptr);
         _exit(127);
     }
@@ -135,16 +142,53 @@ static std::pair<int, std::string> execute_shell_command(const std::string& cmd)
 
     std::string result;
     std::vector<char> buf(4096);
-    ssize_t n = 0;
-    while ((n = read(pipefd[0], buf.data(), buf.size() - 1)) > 0) {
-        buf[n] = '\0';
-        result.append(buf.data(), static_cast<std::size_t>(n));
-        if (result.size() > 524288) {
-            result += "\n[Output truncated at 512KB]\n";
+    auto start_time = std::chrono::steady_clock::now();
+
+    while (true) {
+        struct pollfd pfd{};
+        pfd.fd = pipefd[0];
+        pfd.events = POLLIN | POLLHUP | POLLERR;
+        int poll_ret = poll(&pfd, 1, 100);
+
+        if (poll_ret > 0 && (pfd.revents & POLLIN)) {
+            ssize_t n = read(pipefd[0], buf.data(), buf.size() - 1);
+            if (n > 0) {
+                buf[n] = '\0';
+                result.append(buf.data(), static_cast<std::size_t>(n));
+                if (result.size() > 524288) {
+                    result += "\n[Output truncated at 512KB]\n";
+                    kill(-pid, SIGKILL);
+                    break;
+                }
+            } else {
+                break;
+            }
+        } else if (poll_ret < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+
+        int status = 0;
+        pid_t res = waitpid(pid, &status, WNOHANG);
+        if (res > 0) {
+            char extra[4096];
+            ssize_t extra_n = 0;
+            while ((extra_n = read(pipefd[0], extra, sizeof(extra) - 1)) > 0) {
+                extra[extra_n] = '\0';
+                result.append(extra, static_cast<std::size_t>(extra_n));
+                if (result.size() > 524288) break;
+            }
+            break;
+        }
+
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(now - start_time).count() > 30) {
+            result += "\n[Execution timeout exceeded after 30 seconds]\n";
             kill(-pid, SIGKILL);
             break;
         }
     }
+
     close(pipefd[0]);
 
     int status = 0;
@@ -372,9 +416,17 @@ static void handle_client(int client_fd) {
         content_type = "application/json; charset=UTF-8";
     } else if (path.rfind("/api/terminal/info", 0) == 0) {
         const char* u = std::getenv("USER");
+        if (!u) u = std::getenv("LOGNAME");
+        if (!u) u = std::getenv("USERNAME");
         std::string user = u ? u : "user";
         char host[256];
-        gethostname(host, sizeof(host));
+        std::string hostname_str = "localhost";
+        if (gethostname(host, sizeof(host)) == 0) {
+            hostname_str = host;
+            if (hostname_str.size() > 6 && hostname_str.rfind(".local") == hostname_str.size() - 6) {
+                hostname_str = hostname_str.substr(0, hostname_str.size() - 6);
+            }
+        }
         char cwd_buf[1024];
         std::string cwd = "System Log Analyzer & Error Detector";
         if (getcwd(cwd_buf, sizeof(cwd_buf))) {
@@ -387,7 +439,7 @@ static void handle_client(int client_fd) {
         std::ostringstream ss;
         ss << "{\n"
            << "  \"user\": \"" << escape_json_str(user) << "\",\n"
-           << "  \"host\": \"" << escape_json_str(host) << "\",\n"
+           << "  \"host\": \"" << escape_json_str(hostname_str) << "\",\n"
            << "  \"shell\": \"/bin/zsh\",\n"
            << "  \"cwd\": \"" << escape_json_str(cwd) << "\"\n"
            << "}";

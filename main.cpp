@@ -3,6 +3,7 @@
 #include <string>
 #include <algorithm>
 #include <functional>
+#include <unistd.h>
 #include "include/models.hpp"
 #include "include/ingestion.hpp"
 #include "include/parsers.hpp"
@@ -468,8 +469,15 @@ int main(int argc, char* argv[]) {
     if (os == "macos") header += "macOS Darwin";
     else if (os == "linux") header += "Linux";
     else if (os == "windows") header += "Windows";
-    else header += "Unknown";
     header += "\n======================================================\n";
+
+    if (!isatty(STDIN_FILENO)) {
+        std::cout << header;
+        std::cout << "Non-interactive terminal execution detected.\n"
+                  << "Running demonstration analysis on sample logs...\n\n";
+        run_demo(false, "reports/analysis_report.json", false);
+        return 0;
+    }
 
     struct MenuItem {
         std::string label;

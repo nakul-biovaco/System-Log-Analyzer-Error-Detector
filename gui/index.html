@@ -286,10 +286,14 @@
             <div class="drawer-content-body">
               <div class="drawer-view-page active" id="pageTerminalView">
                 <div class="vscode-terminal-screen" id="vscodeTerminalScreen">
-                  <div class="terminal-history" id="terminalHistory"></div>
-                  <div class="terminal-input-row" id="terminalInputRow">
-                    <span class="terminal-prompt-prefix" id="terminalPromptPrefix">nakulamundhada23@Nakulas-MacBook-Air System Log Analyzer & Error Detector %&nbsp;</span>
-                    <input type="text" class="terminal-input" id="terminalInput" autocomplete="off" spellcheck="false" autofocus>
+                  <div class="terminal-canvas" id="terminalCanvas">
+                    <div class="terminal-history" id="terminalHistory"></div>
+                    <div class="terminal-active-line" id="terminalActiveLine">
+                      <span class="terminal-prompt-prefix" id="terminalPromptPrefix">nakulamundhada23@Nakulas-MacBook-Air System Log Analyzer & Error Detector %&nbsp;</span>
+                      <div class="terminal-input-wrapper">
+                        <input type="text" class="terminal-input" id="terminalInput" autocomplete="off" spellcheck="false" autofocus>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
