@@ -54,6 +54,9 @@
           <button class="dropdown-opt" id="menuViewGrid">Log Explorer</button>
           <button class="dropdown-opt" id="menuViewDashboard">System Health & Metrics</button>
           <button class="dropdown-opt" id="menuViewRules">Diagnostic Rules & Incidents</button>
+          <div class="menu-divider"></div>
+          <button class="dropdown-opt" id="menuViewTerminal">Integrated Terminal <span>Ctrl+`</span></button>
+          <button class="dropdown-opt" id="menuViewInspector">Event Inspector</button>
         </div>
       </div>
       <div class="menu-item" data-menu="tools">
@@ -243,13 +246,79 @@
             </table>
           </div>
 
-          <div class="details-pane">
-            <div class="details-pane-header">
-              <span>Event Inspector</span>
-              <span id="inspectorEventId" class="badge-plain">No Event Selected</span>
+          <div class="panel-resizer" id="bottomResizer" title="Drag to resize panel, double-click to maximize / restore">
+            <div class="resizer-handle-bar"></div>
+          </div>
+
+          <div class="bottom-drawer-panel" id="bottomDrawerPanel">
+            <div class="drawer-header-bar">
+              <div class="drawer-tabs-left">
+                <button class="drawer-tab active" id="tabTerminal" data-drawer-tab="terminal">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 5px;">
+                    <path d="M2 3l5 5-5 5V3zm7 9h5v2H9v-2z"/>
+                  </svg>
+                  <span>Terminal</span>
+                </button>
+                <button class="drawer-tab" id="tabInspector" data-drawer-tab="inspector">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 5px;">
+                    <path d="M8 1a7 7 0 1 0 7 7A7 7 0 0 0 8 1zm0 13a6 6 0 1 1 6-6 6 6 0 0 1-6 6zm-.5-9h1v5h-1zm0 6h1v1.5h-1z"/>
+                  </svg>
+                  <span>Event Inspector</span>
+                  <span id="inspectorEventId" class="badge-plain" style="margin-left: 6px;">No Event Selected</span>
+                </button>
+                <button class="drawer-tab" id="tabOutput" data-drawer-tab="output">
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="margin-right: 5px;">
+                    <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h11A1.5 1.5 0 0 1 15 2.5v11a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 13.5v-11zM2.5 2a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-11z"/>
+                  </svg>
+                  <span>System Output</span>
+                </button>
+              </div>
+
+              <div class="drawer-actions-right">
+                <div class="drawer-action-badge font-mono" id="terminalShellBadge">zsh</div>
+                <button class="drawer-action-btn" id="btnTerminalClear" title="Clear Terminal (Ctrl+L)">Clear</button>
+                <button class="drawer-action-btn" id="btnToggleDock" title="Toggle Dock Location (Bottom / Side)">Side Dock</button>
+                <button class="drawer-action-btn" id="btnMaximizeDrawer" title="Maximize / Restore Panel">&#9650;</button>
+                <button class="drawer-action-btn" id="btnCloseDrawer" title="Collapse Panel">&#10005;</button>
+              </div>
             </div>
-            <div class="details-pane-body" id="inspectorBody">
-              <div class="empty-inspector">Select an event row above to inspect timestamp details, severity classification, and raw record contents.</div>
+
+            <div class="drawer-content-body">
+              <div class="drawer-view-page active" id="pageTerminalView">
+                <div class="terminal-quick-bar">
+                  <span class="quick-bar-label">Quick Commands:</span>
+                  <button class="quick-cmd-btn" data-cmd="make test">make test (16 Checks)</button>
+                  <button class="quick-cmd-btn" data-cmd="make all">make all</button>
+                  <button class="quick-cmd-btn" data-cmd="git status">git status</button>
+                  <button class="quick-cmd-btn" data-cmd="./bin/log_analyzer --demo">run demo</button>
+                  <button class="quick-cmd-btn" data-cmd="ls -la">ls -la</button>
+                  <button class="quick-cmd-btn" data-cmd="clear">clear</button>
+                </div>
+
+                <div class="vscode-terminal-screen" id="vscodeTerminalScreen">
+                  <div class="terminal-history" id="terminalHistory">
+                    <div class="term-welcome-msg">System Log Analyzer Integrated Terminal [zsh] - Type commands or click quick actions.</div>
+                  </div>
+                  <div class="terminal-input-row" id="terminalInputRow">
+                    <span class="terminal-prompt-prefix" id="terminalPromptPrefix">nakulamundhada23@Nakulas-MacBook-Air System Log Analyzer & Error Detector %&nbsp;</span>
+                    <input type="text" class="terminal-input" id="terminalInput" autocomplete="off" spellcheck="false" autofocus>
+                  </div>
+                </div>
+              </div>
+
+              <div class="drawer-view-page" id="pageInspectorView">
+                <div class="details-pane-body" id="inspectorBody">
+                  <div class="empty-inspector">Select an event row above to inspect timestamp details, severity classification, and raw record contents.</div>
+                </div>
+              </div>
+
+              <div class="drawer-view-page" id="pageOutputView">
+                <div class="console-output-screen" id="consoleOutputScreen">
+                  <div class="console-log-line font-mono">[Daemon] Core telemetry server active on 127.0.0.1:8765</div>
+                  <div class="console-log-line font-mono">[Recovery] Self-healing error correction pipeline armed</div>
+                  <div class="console-log-line font-mono">[Hygiene] Constant-memory sliding ring buffer active at 5,000 capacity</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

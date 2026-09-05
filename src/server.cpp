@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "include/models.hpp"
 #include "include/ingestion.hpp"
@@ -61,6 +62,53 @@ static std::string read_file_content(const std::string& filepath) {
     std::ostringstream ss;
     ss << file.rdbuf();
     return ss.str();
+}
+
+static std::string url_decode_str(const std::string& in) {
+    std::string out;
+    out.reserve(in.size());
+    for (std::size_t i = 0; i < in.size(); ++i) {
+        if (in[i] == '%' && i + 2 < in.size()) {
+            int val = 0;
+            std::istringstream is(in.substr(i + 1, 2));
+            if (is >> std::hex >> val) {
+                out.push_back(static_cast<char>(val));
+                i += 2;
+            } else {
+                out.push_back(in[i]);
+            }
+        } else if (in[i] == '+') {
+            out.push_back(' ');
+        } else {
+            out.push_back(in[i]);
+        }
+    }
+    return out;
+}
+
+static std::pair<int, std::string> execute_shell_command(const std::string& cmd) {
+    std::string full_cmd = cmd + " 2>&1";
+    FILE* pipe = popen(full_cmd.c_str(), "r");
+    if (!pipe) {
+        return {1, "Error: Failed to spawn command process\n"};
+    }
+    std::vector<char> buf(4096);
+    std::string result;
+    while (fgets(buf.data(), static_cast<int>(buf.size()), pipe) != nullptr) {
+        result += buf.data();
+        if (result.size() > 262144) {
+            result += "\n[Output truncated at 256KB]\n";
+            break;
+        }
+    }
+    int status = pclose(pipe);
+    int exit_code = 0;
+    if (WIFEXITED(status)) {
+        exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        exit_code = 128 + WTERMSIG(status);
+    }
+    return {exit_code, result};
 }
 
 static std::string build_analysis_json(const std::vector<std::string>& raw_lines) {
@@ -271,7 +319,63 @@ static void handle_client(int client_fd) {
         content_type = "application/json; charset=UTF-8";
     } else if (path.rfind("/api/tests", 0) == 0) {
         bool ok = run_all_tests();
-        response_body = "{\"status\":\"" + std::string(ok ? "passed" : "failed") + "\",\"total_tests\":14,\"passed_tests\":" + std::string(ok ? "14" : "0") + "}";
+        response_body = "{\"status\":\"" + std::string(ok ? "passed" : "failed") + "\",\"total_tests\":16,\"passed_tests\":" + std::string(ok ? "16" : "0") + "}";
+        content_type = "application/json; charset=UTF-8";
+    } else if (path.rfind("/api/terminal/info", 0) == 0) {
+        const char* u = std::getenv("USER");
+        std::string user = u ? u : "user";
+        char host[256];
+        gethostname(host, sizeof(host));
+        char cwd_buf[1024];
+        std::string cwd = "System Log Analyzer & Error Detector";
+        if (getcwd(cwd_buf, sizeof(cwd_buf))) {
+            std::string full_cwd = cwd_buf;
+            auto last_slash = full_cwd.find_last_of("/\\");
+            if (last_slash != std::string::npos && last_slash + 1 < full_cwd.size()) {
+                cwd = full_cwd.substr(last_slash + 1);
+            }
+        }
+        std::ostringstream ss;
+        ss << "{\n"
+           << "  \"user\": \"" << escape_json_str(user) << "\",\n"
+           << "  \"host\": \"" << escape_json_str(host) << "\",\n"
+           << "  \"shell\": \"/bin/zsh\",\n"
+           << "  \"cwd\": \"" << escape_json_str(cwd) << "\"\n"
+           << "}";
+        response_body = ss.str();
+        content_type = "application/json; charset=UTF-8";
+    } else if (path.rfind("/api/terminal/exec", 0) == 0) {
+        std::string cmd;
+        auto pos = path.find("cmd=");
+        if (pos != std::string::npos) {
+            cmd = url_decode_str(path.substr(pos + 4));
+        } else if (method == "POST") {
+            auto body_pos = request.find("\r\n\r\n");
+            if (body_pos != std::string::npos) {
+                std::string body = request.substr(body_pos + 4);
+                auto cmd_tag = body.find("\"cmd\":");
+                if (cmd_tag != std::string::npos) {
+                    auto start_q = body.find("\"", cmd_tag + 6);
+                    auto end_q = body.find("\"", start_q + 1);
+                    if (start_q != std::string::npos && end_q != std::string::npos) {
+                        cmd = body.substr(start_q + 1, end_q - start_q - 1);
+                    }
+                } else {
+                    cmd = body;
+                }
+            }
+        }
+        if (cmd.empty()) {
+            cmd = "echo No command specified";
+        }
+        auto [exit_code, output] = execute_shell_command(cmd);
+        std::ostringstream ss;
+        ss << "{\n"
+           << "  \"command\": \"" << escape_json_str(cmd) << "\",\n"
+           << "  \"exit_code\": " << exit_code << ",\n"
+           << "  \"output\": \"" << escape_json_str(output) << "\"\n"
+           << "}";
+        response_body = ss.str();
         content_type = "application/json; charset=UTF-8";
     } else {
         status_code = 404;

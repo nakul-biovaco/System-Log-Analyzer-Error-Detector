@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   detectHostPlatform();
   setupMenubar();
   wireEventListeners();
+  setupBottomDrawer();
   autoLoadHistoricalLogs(5);
 });
 
@@ -256,6 +257,11 @@ function wireEventListeners() {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
       e.preventDefault();
       exportAnalysisJson();
+    }
+    if (e.ctrlKey && e.key === "`") {
+      e.preventDefault();
+      const tabTerm = document.getElementById("tabTerminal");
+      if (tabTerm) tabTerm.click();
     }
   });
 }
@@ -1098,4 +1104,280 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+let terminalHistory = [];
+let terminalHistoryIndex = -1;
+let terminalUser = "nakulamundhada23";
+let terminalHost = "Nakulas-MacBook-Air";
+let terminalCwd = "System Log Analyzer & Error Detector";
+let isSideDock = false;
+
+function setupBottomDrawer() {
+  const resizer = document.getElementById("bottomResizer");
+  const panel = document.getElementById("bottomDrawerPanel");
+  const pageGrid = document.getElementById("pageGrid");
+  const tabTerminal = document.getElementById("tabTerminal");
+  const tabInspector = document.getElementById("tabInspector");
+  const tabOutput = document.getElementById("tabOutput");
+  const pageTerminal = document.getElementById("pageTerminalView");
+  const pageInspector = document.getElementById("pageInspectorView");
+  const pageOutput = document.getElementById("pageOutputView");
+  const btnMaximize = document.getElementById("btnMaximizeDrawer");
+  const btnClose = document.getElementById("btnCloseDrawer");
+  const btnToggleDock = document.getElementById("btnToggleDock");
+  const menuViewTerminal = document.getElementById("menuViewTerminal");
+  const menuViewInspector = document.getElementById("menuViewInspector");
+
+  const savedHeight = localStorage.getItem("gui_drawer_height");
+  if (savedHeight && panel) {
+    panel.style.height = savedHeight;
+  }
+
+  function switchDrawerTab(tabName) {
+    if (tabTerminal) tabTerminal.classList.toggle("active", tabName === "terminal");
+    if (tabInspector) tabInspector.classList.toggle("active", tabName === "inspector");
+    if (tabOutput) tabOutput.classList.toggle("active", tabName === "output");
+
+    if (pageTerminal) pageTerminal.classList.toggle("active", tabName === "terminal");
+    if (pageInspector) pageInspector.classList.toggle("active", tabName === "inspector");
+    if (pageOutput) pageOutput.classList.toggle("active", tabName === "output");
+
+    if (panel && panel.classList.contains("collapsed")) {
+      panel.classList.remove("collapsed");
+    }
+
+    if (tabName === "terminal") {
+      const termInput = document.getElementById("terminalInput");
+      if (termInput) termInput.focus();
+    }
+  }
+
+  if (tabTerminal) tabTerminal.addEventListener("click", () => switchDrawerTab("terminal"));
+  if (tabInspector) tabInspector.addEventListener("click", () => switchDrawerTab("inspector"));
+  if (tabOutput) tabOutput.addEventListener("click", () => switchDrawerTab("output"));
+
+  if (menuViewTerminal) {
+    menuViewTerminal.addEventListener("click", () => {
+      switchTab("grid");
+      switchDrawerTab("terminal");
+    });
+  }
+
+  if (menuViewInspector) {
+    menuViewInspector.addEventListener("click", () => {
+      switchTab("grid");
+      switchDrawerTab("inspector");
+    });
+  }
+
+  if (btnMaximize && panel) {
+    btnMaximize.addEventListener("click", () => {
+      panel.classList.toggle("maximized");
+      btnMaximize.innerHTML = panel.classList.contains("maximized") ? "&#9660;" : "&#9650;";
+    });
+  }
+
+  if (btnClose && panel) {
+    btnClose.addEventListener("click", () => {
+      panel.classList.toggle("collapsed");
+    });
+  }
+
+  if (btnToggleDock && pageGrid) {
+    btnToggleDock.addEventListener("click", () => {
+      isSideDock = !isSideDock;
+      pageGrid.classList.toggle("side-dock-active", isSideDock);
+      btnToggleDock.textContent = isSideDock ? "Bottom Dock" : "Side Dock";
+      if (!isSideDock && panel) {
+        panel.style.width = "";
+      }
+    });
+  }
+
+  if (resizer && panel) {
+    let isDragging = false;
+    let startY = 0;
+    let startX = 0;
+    let startHeight = 0;
+    let startWidth = 0;
+
+    resizer.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      resizer.classList.add("dragging");
+      startY = e.clientY;
+      startX = e.clientX;
+      startHeight = panel.getBoundingClientRect().height;
+      startWidth = panel.getBoundingClientRect().width;
+      document.body.style.userSelect = "none";
+    });
+
+    resizer.addEventListener("dblclick", () => {
+      panel.classList.toggle("maximized");
+      if (btnMaximize) {
+        btnMaximize.innerHTML = panel.classList.contains("maximized") ? "&#9660;" : "&#9650;";
+      }
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      if (isSideDock) {
+        const deltaX = startX - e.clientX;
+        const newWidth = Math.max(280, Math.min(window.innerWidth * 0.7, startWidth + deltaX));
+        panel.style.width = `${newWidth}px`;
+      } else {
+        const deltaY = startY - e.clientY;
+        const newHeight = Math.max(48, Math.min(window.innerHeight * 0.85, startHeight + deltaY));
+        panel.style.height = `${newHeight}px`;
+        panel.classList.remove("maximized");
+        panel.classList.remove("collapsed");
+        localStorage.setItem("gui_drawer_height", `${newHeight}px`);
+      }
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        resizer.classList.remove("dragging");
+        document.body.style.userSelect = "";
+      }
+    });
+  }
+
+  setupTerminal();
+}
+
+function setupTerminal() {
+  const terminalInput = document.getElementById("terminalInput");
+  const terminalPromptPrefix = document.getElementById("terminalPromptPrefix");
+  const btnClear = document.getElementById("btnTerminalClear");
+
+  fetch(`${API_BASE}/api/terminal/info`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.user) terminalUser = data.user;
+      if (data.host) terminalHost = data.host;
+      if (data.cwd) terminalCwd = data.cwd;
+      updateTerminalPrompt();
+    })
+    .catch(() => {
+      updateTerminalPrompt();
+    });
+
+  function updateTerminalPrompt() {
+    if (terminalPromptPrefix) {
+      terminalPromptPrefix.textContent = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
+    }
+  }
+
+  if (btnClear) {
+    btnClear.addEventListener("click", () => {
+      clearTerminalScreen();
+    });
+  }
+
+  document.querySelectorAll(".quick-cmd-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.getAttribute("data-cmd");
+      if (cmd === "clear") {
+        clearTerminalScreen();
+      } else if (cmd) {
+        executeTerminalCommand(cmd);
+      }
+    });
+  });
+
+  if (terminalInput) {
+    terminalInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const cmd = terminalInput.value.trim();
+        terminalInput.value = "";
+        if (cmd === "clear") {
+          clearTerminalScreen();
+          return;
+        }
+        if (cmd.length > 0) {
+          terminalHistory.push(cmd);
+          terminalHistoryIndex = terminalHistory.length;
+          executeTerminalCommand(cmd);
+        } else {
+          appendEmptyPromptLine();
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (terminalHistory.length > 0 && terminalHistoryIndex > 0) {
+          terminalHistoryIndex--;
+          terminalInput.value = terminalHistory[terminalHistoryIndex] || "";
+        }
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (terminalHistoryIndex < terminalHistory.length - 1) {
+          terminalHistoryIndex++;
+          terminalInput.value = terminalHistory[terminalHistoryIndex] || "";
+        } else {
+          terminalHistoryIndex = terminalHistory.length;
+          terminalInput.value = "";
+        }
+      } else if (e.ctrlKey && e.key === "l") {
+        e.preventDefault();
+        clearTerminalScreen();
+      }
+    });
+  }
+}
+
+function clearTerminalScreen() {
+  const historyEl = document.getElementById("terminalHistory");
+  if (historyEl) {
+    historyEl.innerHTML = "";
+  }
+}
+
+function appendEmptyPromptLine() {
+  const historyEl = document.getElementById("terminalHistory");
+  if (!historyEl) return;
+  const prompt = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
+  const div = document.createElement("div");
+  div.className = "term-entry";
+  div.innerHTML = `<div class="term-entry-cmd"><span class="term-entry-prompt">${escapeHtml(prompt)}</span></div>`;
+  historyEl.appendChild(div);
+  historyEl.scrollTop = historyEl.scrollHeight;
+}
+
+function executeTerminalCommand(cmd) {
+  const historyEl = document.getElementById("terminalHistory");
+  if (!historyEl) return;
+
+  const prompt = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
+  const entry = document.createElement("div");
+  entry.className = "term-entry";
+
+  const cmdLine = document.createElement("div");
+  cmdLine.className = "term-entry-cmd";
+  cmdLine.innerHTML = `<span class="term-entry-prompt">${escapeHtml(prompt)}</span><span>${escapeHtml(cmd)}</span>`;
+  entry.appendChild(cmdLine);
+
+  const outLine = document.createElement("div");
+  outLine.className = "term-entry-out";
+  outLine.textContent = "Executing...";
+  entry.appendChild(outLine);
+
+  historyEl.appendChild(entry);
+  historyEl.scrollTop = historyEl.scrollHeight;
+
+  const encodedCmd = encodeURIComponent(cmd);
+  fetch(`${API_BASE}/api/terminal/exec?cmd=${encodedCmd}`)
+    .then(r => r.json())
+    .then(data => {
+      outLine.textContent = data.output || `(Command exited with status ${data.exit_code})`;
+      if (data.exit_code !== 0) {
+        outLine.classList.add("err");
+      }
+      historyEl.scrollTop = historyEl.scrollHeight;
+    })
+    .catch(err => {
+      outLine.textContent = `Execution error: ${err.message}\n(Backend daemon communication error)`;
+      outLine.classList.add("err");
+      historyEl.scrollTop = historyEl.scrollHeight;
+    });
 }
