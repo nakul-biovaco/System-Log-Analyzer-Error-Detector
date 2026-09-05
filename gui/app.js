@@ -1247,10 +1247,14 @@ function setupBottomDrawer() {
   setupTerminal();
 }
 
+let activeTerminalAbortController = null;
+let activeTerminalOutElement = null;
+
 function setupTerminal() {
   const terminalInput = document.getElementById("terminalInput");
   const terminalPromptPrefix = document.getElementById("terminalPromptPrefix");
   const btnClear = document.getElementById("btnTerminalClear");
+  const screenEl = document.getElementById("vscodeTerminalScreen");
 
   fetch(`${API_BASE}/api/terminal/info`)
     .then(r => r.json())
@@ -1276,19 +1280,49 @@ function setupTerminal() {
     });
   }
 
-  document.querySelectorAll(".quick-cmd-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const cmd = btn.getAttribute("data-cmd");
-      if (cmd === "clear") {
-        clearTerminalScreen();
-      } else if (cmd) {
-        executeTerminalCommand(cmd);
+  if (screenEl && terminalInput) {
+    screenEl.addEventListener("click", () => {
+      const sel = window.getSelection ? window.getSelection().toString() : "";
+      if (sel.length === 0) {
+        terminalInput.focus();
       }
     });
-  });
+
+    screenEl.addEventListener("paste", (e) => {
+      if (document.activeElement !== terminalInput) {
+        terminalInput.focus();
+        const clipboard = (e.clipboardData || window.clipboardData).getData("text");
+        if (clipboard) {
+          e.preventDefault();
+          terminalInput.value += clipboard.replace(/\r\n/g, "\n");
+        }
+      }
+    });
+  }
 
   if (terminalInput) {
     terminalInput.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || (e.metaKey && navigator.platform.includes("Mac"))) && e.key.toLowerCase() === "c") {
+        const sel = window.getSelection ? window.getSelection().toString() : "";
+        if (sel.length > 0) {
+          return;
+        }
+        e.preventDefault();
+        if (activeTerminalAbortController) {
+          fetch(`${API_BASE}/api/terminal/kill`).catch(() => {});
+          activeTerminalAbortController.abort();
+          activeTerminalAbortController = null;
+          if (activeTerminalOutElement) {
+            activeTerminalOutElement.textContent += " ^C";
+            activeTerminalOutElement.classList.add("err");
+          }
+        }
+        const val = terminalInput.value;
+        terminalInput.value = "";
+        appendInterruptedLine(val);
+        return;
+      }
+
       if (e.key === "Enter") {
         const cmd = terminalInput.value.trim();
         terminalInput.value = "";
@@ -1344,6 +1378,17 @@ function appendEmptyPromptLine() {
   historyEl.scrollTop = historyEl.scrollHeight;
 }
 
+function appendInterruptedLine(inputVal) {
+  const historyEl = document.getElementById("terminalHistory");
+  if (!historyEl) return;
+  const prompt = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
+  const div = document.createElement("div");
+  div.className = "term-entry";
+  div.innerHTML = `<div class="term-entry-cmd"><span class="term-entry-prompt">${escapeHtml(prompt)}</span><span>${escapeHtml(inputVal)}</span><span style="color:#f14c4c; font-weight:600; margin-left:4px;">^C</span></div>`;
+  historyEl.appendChild(div);
+  historyEl.scrollTop = historyEl.scrollHeight;
+}
+
 function executeTerminalCommand(cmd) {
   const historyEl = document.getElementById("terminalHistory");
   if (!historyEl) return;
@@ -1359,23 +1404,45 @@ function executeTerminalCommand(cmd) {
 
   const outLine = document.createElement("div");
   outLine.className = "term-entry-out";
-  outLine.textContent = "Executing...";
+  outLine.textContent = "Running...";
   entry.appendChild(outLine);
 
   historyEl.appendChild(entry);
   historyEl.scrollTop = historyEl.scrollHeight;
 
+  const controller = new AbortController();
+  activeTerminalAbortController = controller;
+  activeTerminalOutElement = outLine;
+
   const encodedCmd = encodeURIComponent(cmd);
-  fetch(`${API_BASE}/api/terminal/exec?cmd=${encodedCmd}`)
+  fetch(`${API_BASE}/api/terminal/exec?cmd=${encodedCmd}`, { signal: controller.signal })
     .then(r => r.json())
     .then(data => {
-      outLine.textContent = data.output || `(Command exited with status ${data.exit_code})`;
+      if (activeTerminalAbortController === controller) {
+        activeTerminalAbortController = null;
+        activeTerminalOutElement = null;
+      }
+      if (data.cwd) {
+        terminalCwd = data.cwd;
+        const terminalPromptPrefix = document.getElementById("terminalPromptPrefix");
+        if (terminalPromptPrefix) {
+          terminalPromptPrefix.textContent = `${terminalUser}@${terminalHost} ${terminalCwd} % `;
+        }
+      }
+      outLine.textContent = data.output || "";
       if (data.exit_code !== 0) {
         outLine.classList.add("err");
       }
       historyEl.scrollTop = historyEl.scrollHeight;
     })
     .catch(err => {
+      if (err.name === "AbortError") {
+        return;
+      }
+      if (activeTerminalAbortController === controller) {
+        activeTerminalAbortController = null;
+        activeTerminalOutElement = null;
+      }
       outLine.textContent = `Execution error: ${err.message}\n(Backend daemon communication error)`;
       outLine.classList.add("err");
       historyEl.scrollTop = historyEl.scrollHeight;

@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 #include "include/models.hpp"
 #include "include/ingestion.hpp"
@@ -86,22 +87,70 @@ static std::string url_decode_str(const std::string& in) {
     return out;
 }
 
+static std::atomic<pid_t> g_active_cmd_pid{0};
+
 static std::pair<int, std::string> execute_shell_command(const std::string& cmd) {
-    std::string full_cmd = cmd + " 2>&1";
-    FILE* pipe = popen(full_cmd.c_str(), "r");
-    if (!pipe) {
-        return {1, "Error: Failed to spawn command process\n"};
+    std::string trimmed = cmd;
+    while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) trimmed.erase(trimmed.begin());
+    while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) trimmed.pop_back();
+
+    if (trimmed == "cd" || trimmed.rfind("cd ", 0) == 0) {
+        std::string target = (trimmed == "cd") ? "" : trimmed.substr(3);
+        while (!target.empty() && std::isspace(static_cast<unsigned char>(target.front()))) target.erase(target.begin());
+        if (target.empty() || target == "~") {
+            const char* home = std::getenv("HOME");
+            if (home) chdir(home);
+        } else {
+            if (chdir(target.c_str()) != 0) {
+                return {1, "cd: no such file or directory: " + target + "\n"};
+            }
+        }
+        return {0, ""};
     }
-    std::vector<char> buf(4096);
+
+    int pipefd[2];
+    if (pipe(pipefd) != 0) {
+        return {1, "Error: pipe creation failed\n"};
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return {1, "Error: process fork failed\n"};
+    }
+
+    if (pid == 0) {
+        setpgid(0, 0);
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        dup2(pipefd[1], STDERR_FILENO);
+        close(pipefd[1]);
+        execl("/bin/zsh", "zsh", "-c", cmd.c_str(), nullptr);
+        _exit(127);
+    }
+
+    close(pipefd[1]);
+    g_active_cmd_pid.store(pid);
+
     std::string result;
-    while (fgets(buf.data(), static_cast<int>(buf.size()), pipe) != nullptr) {
-        result += buf.data();
-        if (result.size() > 262144) {
-            result += "\n[Output truncated at 256KB]\n";
+    std::vector<char> buf(4096);
+    ssize_t n = 0;
+    while ((n = read(pipefd[0], buf.data(), buf.size() - 1)) > 0) {
+        buf[n] = '\0';
+        result.append(buf.data(), static_cast<std::size_t>(n));
+        if (result.size() > 524288) {
+            result += "\n[Output truncated at 512KB]\n";
+            kill(-pid, SIGKILL);
             break;
         }
     }
-    int status = pclose(pipe);
+    close(pipefd[0]);
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+    g_active_cmd_pid.store(0);
+
     int exit_code = 0;
     if (WIFEXITED(status)) {
         exit_code = WEXITSTATUS(status);
@@ -369,13 +418,34 @@ static void handle_client(int client_fd) {
             cmd = "echo No command specified";
         }
         auto [exit_code, output] = execute_shell_command(cmd);
+        char cwd_buf[1024];
+        std::string cwd = "System Log Analyzer & Error Detector";
+        if (getcwd(cwd_buf, sizeof(cwd_buf))) {
+            std::string full_cwd = cwd_buf;
+            auto last_slash = full_cwd.find_last_of("/\\");
+            if (last_slash != std::string::npos && last_slash + 1 < full_cwd.size()) {
+                cwd = full_cwd.substr(last_slash + 1);
+            }
+        }
         std::ostringstream ss;
         ss << "{\n"
            << "  \"command\": \"" << escape_json_str(cmd) << "\",\n"
            << "  \"exit_code\": " << exit_code << ",\n"
-           << "  \"output\": \"" << escape_json_str(output) << "\"\n"
+           << "  \"output\": \"" << escape_json_str(output) << "\",\n"
+           << "  \"cwd\": \"" << escape_json_str(cwd) << "\"\n"
            << "}";
         response_body = ss.str();
+        content_type = "application/json; charset=UTF-8";
+    } else if (path.rfind("/api/terminal/kill", 0) == 0) {
+        pid_t cur = g_active_cmd_pid.load();
+        if (cur > 0) {
+            kill(-cur, SIGINT);
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            if (g_active_cmd_pid.load() == cur) {
+                kill(-cur, SIGKILL);
+            }
+        }
+        response_body = "{\"status\":\"killed\"}";
         content_type = "application/json; charset=UTF-8";
     } else {
         status_code = 404;

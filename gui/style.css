@@ -661,43 +661,6 @@ body {
   display: flex;
 }
 
-.terminal-quick-bar {
-  background-color: #1f1f1f;
-  border-bottom: 1px solid #2d2d2d;
-  padding: 4px 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-}
-
-.quick-bar-label {
-  font-size: 10px;
-  font-weight: 600;
-  color: #666666;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.quick-cmd-btn {
-  background-color: #2a2a2a;
-  border: 1px solid #3c3c3c;
-  color: #9cdcfe;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-}
-
-.quick-cmd-btn:hover {
-  background-color: #37373d;
-  border-color: #007acc;
-  color: #ffffff;
-}
-
 .vscode-terminal-screen {
   flex: 1;
   display: flex;
@@ -707,8 +670,9 @@ body {
   font-family: "Menlo", "Monaco", "Consolas", "Courier New", monospace;
   font-size: 12px;
   line-height: 1.45;
-  padding: 8px 12px;
+  padding: 10px 14px;
   overflow: hidden;
+  cursor: text;
 }
 
 .terminal-history {
