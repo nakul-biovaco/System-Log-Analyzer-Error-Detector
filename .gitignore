@@ -5,6 +5,7 @@ bin/
 
 # Machine-specific / IDE files
 .vscode/
+.cache/
 compile_commands.json
 .DS_Store
 .AppleDouble
