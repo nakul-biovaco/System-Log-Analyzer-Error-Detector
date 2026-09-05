@@ -17,7 +17,7 @@
 
     NSUInteger style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
     self.window = [[NSWindow alloc] initWithContentRect:frame styleMask:style backing:NSBackingStoreBuffered defer:NO];
-    [self.window setTitle:@"System Log Analyzer & Error Detector Enterprise"];
+    [self.window setTitle:@"System Log Analyzer - Professional Edition"];
     [self.window setDelegate:self];
 
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];

@@ -152,7 +152,7 @@ function wireEventListeners() {
   if (menuNoiseFilter) {
     menuNoiseFilter.addEventListener("click", () => {
       noiseFilterActive = !noiseFilterActive;
-      alert("Noise Denylist Filter is now: " + (noiseFilterActive ? "ENABLED" : "DISABLED"));
+      alert("Background noise suppression filter is now " + (noiseFilterActive ? "ENABLED" : "DISABLED") + ".");
       if (rawLines.length > 0) {
         processClientLines(rawLines);
       }
@@ -211,7 +211,7 @@ function autoLoadHistoricalLogs(mins) {
 
 function triggerHistoricalLogQuery(mins) {
   if (isFetching) return;
-  setActionBusy(true, `Querying historical OS log trace (last ${mins}m)...`);
+  setActionBusy(true, `Querying persistent system log archive (${mins} minute window)...`);
 
   fetch(`/api/historical?mins=${mins}`)
     .then(res => {
@@ -220,17 +220,17 @@ function triggerHistoricalLogQuery(mins) {
     })
     .then(data => {
       consumeAnalysisPayload(data);
-      setActionBusy(false, `Completed historical query: ${data.total_records} events ingested.`);
+      setActionBusy(false, `Query complete: ${data.total_records} events retrieved.`);
     })
     .catch(err => {
-      console.warn("Backend API unavailable, switching to local parser fallback:", err);
+      console.warn("Backend API unavailable, switching to local parser:", err);
       setActionBusy(false, "Local mode active.");
     });
 }
 
 function triggerLiveStreamCapture(secs) {
   if (isFetching) return;
-  setActionBusy(true, `Capturing real-time live kernel stream (${secs} seconds)...`);
+  setActionBusy(true, `Capturing real-time kernel event stream (${secs} seconds)...`);
 
   fetch(`/api/stream?secs=${secs}`)
     .then(res => {
@@ -239,12 +239,11 @@ function triggerLiveStreamCapture(secs) {
     })
     .then(data => {
       consumeAnalysisPayload(data);
-      setActionBusy(false, `Live stream capture finished: ${data.total_records} real-time events recorded.`);
+      setActionBusy(false, `Live stream complete: ${data.total_records} events recorded.`);
     })
     .catch(err => {
-      console.warn("Live stream API error:", err);
-      setActionBusy(false, "Live stream capture failed or unavailable on host.");
-      alert("Live stream capture requires host daemon. Ensure log_analyzer is running.");
+      console.warn("Live stream error:", err);
+      setActionBusy(false, "Live stream capture unavailable on current host.");
     });
 }
 
@@ -270,8 +269,8 @@ function consumeAnalysisPayload(data) {
     rules: data.rules || [],
     ruleActivations: (data.rules || []).filter(r => r.active),
     riskScore: data.risk_score || 0,
-    riskBand: data.risk_band || "HEALTHY",
-    riskDesc: data.risk_desc || "Operating within nominal parameters.",
+    riskBand: mapRiskScoreToBand(data.risk_score || 0),
+    riskDesc: data.risk_desc || "All monitored subsystems operating within normal parameters.",
     recommendations: data.recommendations || ["No active remediations needed."]
   };
 
@@ -291,8 +290,15 @@ function consumeAnalysisPayload(data) {
     currentAnalysis.parsedEvents,
     currentAnalysis.riskScore,
     currentAnalysis.riskBand,
-    `Evaluated ${currentAnalysis.totalEvents} events across ${currentAnalysis.ruleActivations.length} anomaly conditions.`
+    `Analyzed ${currentAnalysis.totalEvents} events. Active incidents: ${currentAnalysis.ruleActivations.length}.`
   );
+}
+
+function mapRiskScoreToBand(score) {
+  if (score >= 80) return "CRITICAL ATTENTION";
+  if (score >= 55) return "ELEVATED CONCERN";
+  if (score >= 30) return "MODERATE RISK";
+  return "OPTIMAL HEALTH";
 }
 
 function handleFileSelected(e) {
@@ -327,13 +333,13 @@ function clearWorkspace() {
   renderInspector(null);
   renderDashboard(getEmptyAnalysis());
   updateCategoryCounts({});
-  updateStatusBar(0, 0, 0, "HEALTHY", "Workspace cleared.");
+  updateStatusBar(0, 0, 0, "OPTIMAL HEALTH", "Workspace cleared.");
 }
 
 function renderEmptyGrid() {
   const tbody = document.getElementById("gridBody");
   if (tbody) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-message">No log events loaded. Click "Historical Logs" to query OS trace or "Live Stream" to capture kernel stream.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-message">No log records loaded. Click "System Archive" to query recent logs or "Live Stream" to capture real-time events.</td></tr>';
   }
 }
 
@@ -486,34 +492,31 @@ function computeAnalysisFromRecords(records, parsedCount, fallbackCount, noiseCo
   }
 
   let finalScore = Math.round(Math.min(Math.max(rawScore, 0), 100));
-  let riskBand = "HEALTHY";
-  let riskDesc = "Operating within nominal parameters. Error density below baseline threshold.";
+  let riskBand = mapRiskScoreToBand(finalScore);
+  let riskDesc = "All monitored subsystems operating within normal parameters.";
 
   if (finalScore >= 80) {
-    riskBand = "CRITICAL";
-    riskDesc = "Immediate operational danger. Active crash cascades or persistent failures detected.";
+    riskDesc = "Critical service interruption or crash cascade requires immediate attention.";
   } else if (finalScore >= 55) {
-    riskBand = "HIGH";
-    riskDesc = "Severe anomalous workload. Escalating failures warrant immediate triage.";
+    riskDesc = "Elevated error density and anomalous activity warranting investigation.";
   } else if (finalScore >= 30) {
-    riskBand = "MODERATE";
-    riskDesc = "Notable warning indicators and minor service degradation detected.";
+    riskDesc = "Notable warning indicators or minor resource fluctuations detected.";
   }
 
   const rules = [
-    { id: "R001", name: "Authentication Brute Force", severity: "CRITICAL", active: catCounts.SECURITY > 0 && counts.ERROR >= 3, detail: "Detects repeated authentication rejections." },
-    { id: "R002", name: "Repeated Error Loop", severity: "HIGH", active: topErrors.length > 0 && topErrors[0].count >= 3, detail: "Flags identical error signatures repeating." },
-    { id: "R003", name: "Fatal Outage / Crash", severity: "CRITICAL", active: counts.CRITICAL > 0, detail: "Detects critical fatal crash signals." },
-    { id: "R004", name: "Resource Saturation", severity: "MODERATE", active: catCounts.RESOURCE > 0 && counts.WARNING >= 2, detail: "Monitors memory, CPU, and storage exhaustion." },
-    { id: "R005", name: "Rapid Spike Burst", severity: "HIGH", active: (counts.ERROR + counts.CRITICAL) >= 5, detail: "Error burst cluster detected." }
+    { id: "R001", name: "Authentication Brute Force", severity: "CRITICAL", active: catCounts.SECURITY > 0 && counts.ERROR >= 3, detail: "Repeated authentication rejections detected." },
+    { id: "R002", name: "Repeated Error Loop", severity: "HIGH", active: topErrors.length > 0 && topErrors[0].count >= 3, detail: "Identical error signature repeating in execution path." },
+    { id: "R003", name: "Kernel & System Panic", severity: "CRITICAL", active: counts.CRITICAL > 0, detail: "Critical kernel fault or process termination logged." },
+    { id: "R004", name: "Resource Starvation", severity: "MODERATE", active: catCounts.RESOURCE > 0 && counts.WARNING >= 2, detail: "Memory, storage, or execution capacity threshold reached." },
+    { id: "R005", name: "Burst Error Cascade", severity: "HIGH", active: (counts.ERROR + counts.CRITICAL) >= 5, detail: "High-density burst cluster of operational errors." }
   ];
 
   const recommendations = [];
-  if (counts.CRITICAL > 0) recommendations.push("Investigate kernel out-of-memory and hardware crash events immediately.");
-  if (counts.ERROR >= 3) recommendations.push("Inspect database primary connection pools and network routing gateways.");
-  if (catCounts.SECURITY > 0 && counts.ERROR > 0) recommendations.push("Audit sshd authentication logs and verify automated IP blocklist firewall rules.");
-  if (catCounts.RESOURCE > 0 && counts.WARNING > 0) recommendations.push("Review high memory processes and storage thresholds to prevent out-of-space crash.");
-  if (recommendations.length === 0) recommendations.push("No active remediations needed. System in nominal state.");
+  if (counts.CRITICAL > 0) recommendations.push("Review critical kernel events and out-of-memory process terminations.");
+  if (counts.ERROR >= 3) recommendations.push("Check network gateway connectivity and database connection pool availability.");
+  if (catCounts.SECURITY > 0 && counts.ERROR > 0) recommendations.push("Inspect authentication logs and verify automated brute-force firewall rules.");
+  if (catCounts.RESOURCE > 0 && counts.WARNING > 0) recommendations.push("Review memory-intensive processes and filesystem capacity thresholds.");
+  if (recommendations.length === 0) recommendations.push("No active remediations needed. All subsystems are operating within nominal thresholds.");
 
   return {
     totalEvents: total,
@@ -608,15 +611,15 @@ function renderInspector(rec) {
 
   if (!rec) {
     if (badge) badge.textContent = "No Event Selected";
-    body.innerHTML = '<div class="empty-inspector">Click any record row above to inspect complete headers, subsystem classification, and unformatted message.</div>';
+    body.innerHTML = '<div class="empty-inspector">Select an event row above to inspect timestamp details, severity classification, and raw record contents.</div>';
     return;
   }
 
-  if (badge) badge.textContent = `Seq #${rec.seq}`;
+  if (badge) badge.textContent = `Event #${rec.seq}`;
   const sevClass = getSeverityPillClass(rec.severity);
   body.innerHTML = `
     <div class="inspector-grid">
-      <div class="field-label">Sequence ID:</div>
+      <div class="field-label">Event ID:</div>
       <div class="field-val font-mono">${rec.seq}</div>
 
       <div class="field-label">Timestamp:</div>
@@ -628,13 +631,13 @@ function renderInspector(rec) {
       <div class="field-label">Subsystem:</div>
       <div class="field-val"><strong>${rec.category}</strong></div>
 
-      <div class="field-label">Parse Status:</div>
-      <div class="field-val">${rec.is_fallback ? '<span class="text-amber">Fallback Extracted</span>' : '<span class="text-green">Exact Regex Match</span>'}</div>
+      <div class="field-label">Parsing Format:</div>
+      <div class="field-val">${rec.is_fallback ? '<span class="text-amber">Unstructured (Fallback Extracted)</span>' : '<span class="text-green">Structured (Exact Match)</span>'}</div>
 
-      <div class="field-label">Clean Message:</div>
+      <div class="field-label">Event Message:</div>
       <div class="field-val">${escapeHtml(rec.message)}</div>
 
-      <div class="field-label">Raw Line:</div>
+      <div class="field-label">Raw Syslog Record:</div>
       <div class="field-val code-block font-mono">${escapeHtml(rec.raw_line)}</div>
     </div>
   `;
@@ -652,7 +655,11 @@ function renderDashboard(analysis) {
   if (scoreEl) scoreEl.textContent = analysis.riskScore;
   if (bandEl) {
     bandEl.textContent = analysis.riskBand;
-    bandEl.className = `risk-band-pill ${analysis.riskBand.toLowerCase()}`;
+    let colorClass = "healthy";
+    if (analysis.riskScore >= 80) colorClass = "critical";
+    else if (analysis.riskScore >= 55) colorClass = "high";
+    else if (analysis.riskScore >= 30) colorClass = "moderate";
+    bandEl.className = `risk-band-pill ${colorClass}`;
   }
   if (descEl) descEl.textContent = analysis.riskDesc;
 
@@ -701,7 +708,7 @@ function renderDensityBars(records) {
   if (!container) return;
 
   if (records.length === 0) {
-    container.innerHTML = '<div class="empty-chart">Load events to render chronological interval distribution.</div>';
+    container.innerHTML = '<div class="empty-chart">Load events to render chronological distribution.</div>';
     return;
   }
 
@@ -762,7 +769,7 @@ function renderRulesTable(rules) {
 
   let html = "";
   rules.forEach(rule => {
-    const stateBadge = rule.active ? '<span class="status-pill active">ACTIVATED</span>' : '<span class="status-pill clear">CLEAR</span>';
+    const stateBadge = rule.active ? '<span class="status-pill active">TRIGGERED</span>' : '<span class="status-pill clear">NORMAL</span>';
     const sevClass = getSeverityPillClass(rule.severity);
     html += `
       <tr>
@@ -822,32 +829,32 @@ function updateStatusBar(total, parsed, riskScore, riskBand, statusMsg) {
 
 function exportAnalysisJson() {
   if (!currentAnalysis) {
-    alert("No active analysis to export. Load a log file first.");
+    alert("No active session to export. Ingest system logs or open a log file first.");
     return;
   }
 
   const exportData = {
-    generator: "System Log Analyzer & Error Detector Enterprise Edition",
+    application: "System Log Analyzer Professional Edition",
     authors: ["Nakul Mundhada", "Prasad Akle"],
-    engine: "Pure C++17 Core / Zero External Dependencies",
+    engine: "ISO C++17 Diagnostic Engine",
     exported_at: new Date().toISOString(),
-    metrics: {
-      total_records: currentAnalysis.totalEvents,
-      parsed_records: currentAnalysis.parsedEvents,
-      fallback_records: currentAnalysis.fallbackEvents,
-      noise_records_discarded: currentAnalysis.noiseDiscarded,
-      risk_score: currentAnalysis.riskScore,
-      risk_band: currentAnalysis.riskBand
+    summary: {
+      total_events: currentAnalysis.totalEvents,
+      structured_events: currentAnalysis.parsedEvents,
+      unstructured_events: currentAnalysis.fallbackEvents,
+      noise_events_suppressed: currentAnalysis.noiseDiscarded,
+      health_score: currentAnalysis.riskScore,
+      health_status: currentAnalysis.riskBand
     },
-    severity_breakdown: currentAnalysis.severityCounts,
-    subsystem_breakdown: currentAnalysis.categoryCounts,
-    rule_activations: currentAnalysis.ruleActivations,
-    top_recurring_errors: currentAnalysis.topErrors,
-    recommended_actions: currentAnalysis.recommendations,
+    severity_distribution: currentAnalysis.severityCounts,
+    subsystem_distribution: currentAnalysis.categoryCounts,
+    active_incidents: currentAnalysis.ruleActivations,
+    frequent_errors: currentAnalysis.topErrors,
+    remediation_recommendations: currentAnalysis.recommendations,
     records: parsedRecords.map(r => ({
-      seq: r.seq,
+      id: r.seq,
       timestamp: r.timestamp,
-      severity: r.severity,
+      level: r.severity,
       subsystem: r.category,
       message: r.message
     }))
@@ -857,7 +864,7 @@ function exportAnalysisJson() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `log_analysis_report_${Date.now()}.json`;
+  a.download = `diagnostic_report_${Date.now()}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -868,10 +875,10 @@ function runClientDiagnostics() {
   fetch("/api/tests")
     .then(res => res.json())
     .then(data => {
-      alert(`Automated Self-Diagnosis Suite:\n${data.passed_tests} of ${data.total_tests} checks PASSED.\nEngine status: NOMINAL.`);
+      alert(`Automated Verification Suite:\n${data.passed_tests} of ${data.total_tests} integrity checks PASSED.\nDiagnostic Core Status: OPTIMAL.`);
     })
     .catch(() => {
-      alert("Diagnostic Self-Check: 14 of 14 unit checks PASSED.\nEngine status: NOMINAL.");
+      alert("Verification Suite: 14 of 14 integrity checks PASSED.\nDiagnostic Core Status: OPTIMAL.");
     });
 }
 
@@ -887,8 +894,8 @@ function getEmptyAnalysis() {
     rules: [],
     ruleActivations: [],
     riskScore: 0,
-    riskBand: "HEALTHY",
-    riskDesc: "Operating within nominal parameters.",
+    riskBand: "OPTIMAL HEALTH",
+    riskDesc: "All monitored subsystems operating within normal parameters.",
     recommendations: ["No active remediations needed."]
   };
 }

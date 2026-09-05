@@ -193,7 +193,7 @@ static void handle_client(int client_fd) {
         content_type = "application/javascript; charset=UTF-8";
     } else if (path.rfind("/api/status", 0) == 0) {
         std::string os = detect_platform();
-        response_body = "{\"status\":\"ok\",\"platform\":\"" + os + "\",\"version\":\"2.4.0\",\"engine\":\"Pure C++17 Standalone\"}";
+        response_body = "{\"status\":\"ok\",\"platform\":\"" + os + "\",\"version\":\"2.4.0\",\"engine\":\"Standard C++17 Core Engine\"}";
         content_type = "application/json; charset=UTF-8";
     } else if (path.rfind("/api/historical", 0) == 0) {
         int mins = 5;
