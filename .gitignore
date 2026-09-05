@@ -1,10 +1,18 @@
+# Build artifacts
 *.o
 build/
 bin/
-reports/*.json
-reports/*.txt
+
+# Machine-specific / IDE files
+.vscode/
+compile_commands.json
 .DS_Store
 .AppleDouble
 .LSOverride
 *.swp
 *.exe
+
+# Analysis outputs
+reports/*.json
+reports/*.txt
+!reports/.gitkeep
