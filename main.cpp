@@ -335,6 +335,22 @@ static void run_search() {
     std::cout << "-------------------------------------------------------\n\n";
 }
 
+static void launch_gui_dashboard() {
+    std::string os = detect_platform();
+    std::cout << "\nLaunching cross-platform GUI dashboard in default browser...\n";
+    std::string cmd;
+    if (os == "macos") {
+        cmd = "open gui/index.html &";
+    } else if (os == "windows") {
+        cmd = "start gui\\index.html";
+    } else {
+        cmd = "xdg-open gui/index.html &";
+    }
+    int res = std::system(cmd.c_str());
+    (void)res;
+    std::cout << "Dashboard opened: gui/index.html\n\n";
+}
+
 static bool handle_cli_args(int argc, char* argv[]) {
     std::vector<std::string> args;
     for (int i = 1; i < argc; ++i) {
@@ -347,6 +363,7 @@ static bool handle_cli_args(int argc, char* argv[]) {
                   << "Options:\n"
                   << "  --demo               Run analysis on built-in sample log corpus\n"
                   << "  --file <path>        Analyze specified log file\n"
+                  << "  --gui                Launch interactive GUI dashboard in default browser\n"
                   << "  --export <path>      Export structured JSON analysis report to path\n"
                   << "  --test               Execute unit tests and fault-injection suite\n"
                   << "  --platform           Query and analyze native OS logs automatically\n"
@@ -354,6 +371,11 @@ static bool handle_cli_args(int argc, char* argv[]) {
                   << "Detected platform: " << detect_platform() << "\n"
                   << "Without options, launches interactive CLI menu.\n";
         std::exit(0);
+    }
+
+    if (std::find(args.begin(), args.end(), "--gui") != args.end()) {
+        launch_gui_dashboard();
+        return true;
     }
 
     if (std::find(args.begin(), args.end(), "--test") != args.end()) {
@@ -454,6 +476,9 @@ int main(int argc, char* argv[]) {
         }});
     }
 
+    items.push_back({"Launch GUI Dashboard (Desktop / Browser)", []() {
+        launch_gui_dashboard();
+    }});
     items.push_back({"Enter Logs Manually", []() {
         run_manual_entry();
     }});

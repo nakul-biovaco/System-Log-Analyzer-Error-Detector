@@ -35,7 +35,13 @@ test: $(TARGET)
 demo: $(TARGET)
 	./$(TARGET) --demo
 
+gui:
+	@echo "Launching cross-platform GUI dashboard..."
+	@if [ "$$(uname)" = "Darwin" ]; then open gui/index.html; \
+	elif [ "$$(uname)" = "Linux" ]; then xdg-open gui/index.html; \
+	else start gui/index.html; fi
+
 clean:
 	rm -rf $(BUILD_DIR) bin
 
-.PHONY: all clean test demo
+.PHONY: all clean test demo gui

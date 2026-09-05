@@ -55,7 +55,19 @@ make clean && make all
 
 
 --------------------------------------------------------------------------------
-7. RUN INTERACTIVE CLI DASHBOARD MENU
+7. LAUNCH CROSS-PLATFORM GUI DASHBOARD (Desktop / Browser - All GPOS)
+--------------------------------------------------------------------------------
+# Launch via C++ CLI binary:
+./bin/log_analyzer --gui
+
+# Or launch directly via Makefile:
+make gui
+
+# Or open gui/index.html in any desktop browser directly.
+
+
+--------------------------------------------------------------------------------
+8. RUN INTERACTIVE CLI DASHBOARD MENU
 --------------------------------------------------------------------------------
 ./bin/log_analyzer
 

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Log Analyzer & Error Detector - Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="logo-badge">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="app-title">System Log Analyzer & Error Detector</h1>
+          <p class="app-subtitle">Cross-Platform Log Ingestion, Anomaly Detection & Risk Intelligence</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="platform-pill" id="platformIndicator">
+          <span class="status-pulse"></span>
+          <span id="platformName">GPOS Native</span>
+        </div>
+        <button class="btn btn-secondary" id="btnUpload">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Log
+        </button>
+        <input type="file" id="fileInput" accept=".log,.txt,.json" style="display:none">
+        <button class="btn btn-secondary" id="btnExportJson">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export Report
+        </button>
+      </div>
+    </header>
+
+    <div class="sample-bar">
+      <span class="sample-label">Quick Datasets:</span>
+      <button class="sample-chip" data-sample="demo">Built-in Demo</button>
+      <button class="sample-chip" data-sample="auth">Auth Attack (Brute Force)</button>
+      <button class="sample-chip" data-sample="spike">Spike Anomaly (Outage)</button>
+      <button class="sample-chip" data-sample="system">System Crash (OOM & DB)</button>
+      <button class="sample-chip" data-sample="clear">Clear</button>
+    </div>
+
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <span class="metric-label">Total Evaluated Events</span>
+        <div class="metric-value" id="valTotalEvents">0</div>
+        <span class="metric-sub" id="valRawLines">Raw Lines: 0</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Fully Parsed</span>
+        <div class="metric-value text-success" id="valParsed">0</div>
+        <span class="metric-sub" id="valParsedPct">100.0% match</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Fallback Extracted</span>
+        <div class="metric-value text-warning" id="valFallback">0</div>
+        <span class="metric-sub" id="valFallbackPct">0.0% tolerant</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Noise Discarded</span>
+        <div class="metric-value text-muted" id="valNoise">0</div>
+        <span class="metric-sub">Telemetry Filter</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Engine Throughput</span>
+        <div class="metric-value text-info" id="valThroughput">0</div>
+        <span class="metric-sub" id="valTime">0.000s processing</span>
+      </div>
+    </section>
+
+    <div class="dashboard-grid">
+      <div class="grid-col">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Operational Risk Assessment</h2>
+            <span class="risk-badge" id="riskBadge">HEALTHY</span>
+          </div>
+          <div class="card-body">
+            <div class="gauge-wrapper">
+              <svg class="risk-gauge" viewBox="0 0 200 120">
+                <path class="gauge-track" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke-width="16" stroke-linecap="round"/>
+                <path class="gauge-fill" id="gaugeFill" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke-width="16" stroke-linecap="round"/>
+              </svg>
+              <div class="gauge-center">
+                <div class="gauge-score" id="riskScore">0</div>
+                <div class="gauge-max">/ 100</div>
+              </div>
+            </div>
+            <p class="risk-summary" id="riskExplanation">System operational within nominal parameters. No critical failures detected.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Severity Breakdown</h2>
+            <span class="timeline-span" id="valTimeline">Real-time</span>
+          </div>
+          <div class="card-body">
+            <div class="severity-bars" id="severityBarsContainer">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Subsystem Categories</h2>
+          </div>
+          <div class="card-body">
+            <div class="category-grid" id="categoryGridContainer">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-col">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Anomaly Detection Rules (R001 - R005)</h2>
+            <span class="badge-count" id="valRulesTriggered">0 Triggered</span>
+          </div>
+          <div class="card-body">
+            <div class="rules-stack" id="rulesStackContainer">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Time-Windowed Error Density</h2>
+            <span class="card-tag">Burst Anomaly Detection</span>
+          </div>
+          <div class="card-body">
+            <div class="density-chart" id="densityChartContainer">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Top Recurring Errors</h2>
+          </div>
+          <div class="card-body">
+            <div class="top-errors-list" id="topErrorsContainer">
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Actionable Recommendations</h2>
+          </div>
+          <div class="card-body">
+            <ul class="recommendations-list" id="recommendationsList">
+              <li class="rec-item text-muted">Load or paste log records to generate targeted remediation actions.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section class="card log-viewer-card">
+      <div class="card-header">
+        <div class="viewer-controls">
+          <h2 class="card-title">Log Event Stream</h2>
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="logSearchInput" placeholder="Filter message, sender, or keyword...">
+          </div>
+          <select class="level-filter" id="logLevelSelect">
+            <option value="ALL">All Severities</option>
+            <option value="CRITICAL">CRITICAL Only</option>
+            <option value="ERROR">ERROR & CRITICAL</option>
+            <option value="WARNING">WARNING</option>
+            <option value="INFO">INFO</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body no-pad">
+        <div class="log-table-wrapper">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th style="width: 90px;">Seq ID</th>
+                <th style="width: 170px;">Timestamp</th>
+                <th style="width: 100px;">Level</th>
+                <th style="width: 110px;">Subsystem</th>
+                <th>Message Content</th>
+              </tr>
+            </thead>
+            <tbody id="logTableBody">
+              <tr>
+                <td colspan="5" class="empty-state">No logs loaded. Click "Upload Log" or select a quick dataset above.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer class="app-footer">
+      <div>System Log Analyzer & Error Detector &bull; Pure Standard C++17 Engine & Cross-Platform Dashboard</div>
+      <div>Engineered by <strong>Nakul Mundhada</strong> &bull; Co-authored by <strong>Prasad Akle</strong></div>
+    </footer>
+  </div>
+
+  <div class="drag-overlay" id="dragOverlay">
+    <div class="drag-box">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <h3>Drop Log or JSON File Here</h3>
+      <p>Supports .log, .txt, syslog streams, and exported reports</p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

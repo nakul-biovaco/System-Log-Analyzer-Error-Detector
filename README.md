@@ -65,7 +65,8 @@ A high-performance, cross-platform system utility engineered in **pure Standard 
 ## Core Features
 
 - **Zero External Dependencies**: Built entirely with the ISO C++17 standard library (no Boost, no third-party JSON/test libraries).
-- **Cross-Platform Support**:
+- **Cross-Platform Visual GUI Dashboard (All GPOS)**: Includes a modern visual web-desktop dashboard in `gui/` launched instantly via `./bin/log_analyzer --gui` or `make gui` on macOS, Linux, and Windows with animated SVG risk gauge, severity distribution bars, subsystem distribution charts, and JSON import/export.
+- **Cross-Platform OS Ingestion**:
   - **macOS**: Persistent unified log queries (`log show`) and real-time Darwin kernel stream capture (`log stream` via POSIX `pipe()`, `fork()`, non-blocking `poll()`, and `kill(SIGKILL)` to prevent descriptor deadlocks).
   - **Linux**: Systemd journal ingestion (`journalctl --no-pager`) with `/var/log/syslog` fallback.
   - **Windows**: Native Windows Event Log extraction via `wevtutil` with structured multiline block parsing.
@@ -139,6 +140,10 @@ A high-performance, cross-platform system utility engineered in **pure Standard 
 │   ├── risk.cpp
 │   └── tests.cpp
 ├── main.cpp                     # CLI entrypoint with OS-aware dynamic menu
+├── gui/                         # Cross-platform visual GUI dashboard
+│   ├── index.html               # Semantic HTML5 layout
+│   ├── style.css                # Glassmorphic dark theme
+│   └── app.js                   # Client-side parser & interactive engine
 ├── sample_logs/                 # Test sample log corpus
 │   ├── auth_attack.log
 │   ├── spike_anomaly.log
@@ -168,7 +173,14 @@ make clean && make all
 ./bin/log_analyzer --demo --export reports/demo.json
 ```
 
-### 4. Analyze a Log File
+### 4. Launch Cross-Platform GUI Dashboard
+```bash
+./bin/log_analyzer --gui
+# Or directly via Makefile:
+make gui
+```
+
+### 5. Analyze a Log File
 ```bash
 ./bin/log_analyzer --file sample_logs/auth_attack.log
 ```
