@@ -319,11 +319,8 @@ function triggerHistoricalLogQuery(mins) {
       showToast(`Loaded ${data.total_records} events from system archive.`);
     })
     .catch(err => {
-      console.warn("Daemon API unreachable, generating local system snapshot:", err);
-      const fallbackData = generateFallbackSyslogTrace(mins * 30);
-      processClientLines(fallbackData);
-      setActionBusy(false, `Loaded local system trace (${fallbackData.length} events).`);
-      showToast(`Ingested ${fallbackData.length} system events.`);
+      setActionBusy(false, `Local system archive query error: ${err.message}`);
+      showToast(`Unable to read local system archive: ${err.message}`);
     });
 }
 
@@ -355,38 +352,9 @@ function triggerLiveStreamCapture(secs) {
     })
     .catch(err => {
       clearInterval(countdown);
-      console.warn("Live stream daemon unreachable, generating stream burst:", err);
-      const streamBurst = generateFallbackSyslogTrace(secs * 15);
-      processClientLines(streamBurst);
-      setActionBusy(false, `Live stream complete: ${streamBurst.length} events recorded.`);
-      showToast(`Captured ${streamBurst.length} real-time kernel events.`);
+      setActionBusy(false, `Live kernel stream capture error: ${err.message}`);
+      showToast(`Unable to capture live kernel stream: ${err.message}`);
     });
-}
-
-function generateFallbackSyslogTrace(count) {
-  const hosts = ["localhost", "host-darwin", "gateway-01"];
-  const daemons = [
-    { p: "kernel[0]", cat: "SYSTEM", lvl: "INFO", m: "AppleBCMWLAN: channel switch notification completed" },
-    { p: "sshd[1024]", cat: "SECURITY", lvl: "INFO", m: "Connection accepted from 192.168.1.101 port 52140" },
-    { p: "symptomsd[517]", cat: "NETWORK", lvl: "INFO", m: "TCP progress metrics score: 24, problem ratio: 0.02" },
-    { p: "rapportd[720]", cat: "NETWORK", lvl: "WARNING", m: "MediaRemote connection probe timed out after 3000ms" },
-    { p: "database[5432]", cat: "NETWORK", lvl: "ERROR", m: "Connection refused to database primary on port 5432" },
-    { p: "sshd[1025]", cat: "SECURITY", lvl: "ERROR", m: "Authentication failure: invalid credentials for root" },
-    { p: "worker[4102]", cat: "RESOURCE", lvl: "WARNING", m: "Memory allocation approaching threshold: 88% RSS" },
-    { p: "fseventsd[340]", cat: "FILE", lvl: "INFO", m: "Created file modification event token 0x1322f3" },
-    { p: "kernel[0]", cat: "PROCESS", lvl: "CRITICAL", m: "Out of memory: killed process 4102 (worker) score 95" }
-  ];
-
-  const lines = [];
-  const now = Date.now();
-  for (let i = 0; i < count; ++i) {
-    const d = new Date(now - (count - i) * 800);
-    const ts = d.toISOString().replace("T", " ").substring(0, 19);
-    const item = daemons[i % daemons.length];
-    const host = hosts[i % hosts.length];
-    lines.push(`${ts} ${host} ${item.p}: [${item.lvl}] ${item.m}`);
-  }
-  return lines;
 }
 
 function consumeAnalysisPayload(data) {

@@ -385,8 +385,9 @@ static void handle_client(int client_fd) {
             lines = get_linux_logs(500);
         } else if (os == "windows") {
             lines = get_windows_event_logs("System", 500);
-        } else {
-            lines = get_sample_logs();
+        }
+        if (lines.empty()) {
+            lines = get_platform_logs(mins);
         }
         response_body = build_analysis_json(lines);
         content_type = "application/json; charset=UTF-8";
@@ -403,10 +404,16 @@ static void handle_client(int client_fd) {
         std::vector<std::string> lines;
         if (os == "macos") {
             lines = get_macos_live_stream(secs);
+            if (lines.empty()) {
+                lines = get_macos_historical(2);
+            }
         } else if (os == "linux") {
             lines = get_linux_logs(300);
-        } else {
-            lines = get_sample_logs();
+        } else if (os == "windows") {
+            lines = get_windows_event_logs("System", 300);
+        }
+        if (lines.empty()) {
+            lines = get_platform_logs(2);
         }
         response_body = build_analysis_json(lines);
         content_type = "application/json; charset=UTF-8";

@@ -325,10 +325,15 @@ static void run_file_analysis(const std::string& prefilled_path = "", bool auto_
 
 static void run_search() {
     if (SESSION_RECORDS.empty()) {
-        std::cout << "\nNo records loaded yet. Loading built-in sample logs for search...\n";
-        auto lines = get_sample_logs();
+        std::cout << "\nNo records loaded yet. Ingesting real-time local system logs for search...\n";
+        auto lines = get_platform_logs(3);
         for (std::size_t i = 0; i < lines.size(); ++i) {
-            SESSION_RECORDS.push_back(parse_simple_format(lines[i], i + 1));
+            auto rec = parse_syslog_format(lines[i], i + 1);
+            if (rec.has_value()) {
+                SESSION_RECORDS.push_back(std::move(*rec));
+            } else {
+                SESSION_RECORDS.push_back(parse_simple_format(lines[i], i + 1));
+            }
         }
     }
 
@@ -473,9 +478,21 @@ int main(int argc, char* argv[]) {
 
     if (!isatty(STDIN_FILENO)) {
         std::cout << header;
-        std::cout << "Non-interactive terminal execution detected.\n"
-                  << "Running demonstration analysis on sample logs...\n\n";
-        run_demo(false, "reports/analysis_report.json", false);
+        std::cout << "Capturing real-time local system logs (" << os << ")...\n\n";
+        std::vector<std::string> lines;
+        if (os == "macos") {
+            lines = get_macos_live_stream(3);
+            if (lines.empty()) lines = get_macos_historical(2);
+        } else if (os == "linux") {
+            lines = get_linux_logs(500);
+        } else if (os == "windows") {
+            lines = get_windows_event_logs("System", 500);
+        }
+        if (!lines.empty()) {
+            execute_analysis_pipeline(lines, parse_syslog_format, false, "reports/analysis_report.json", false);
+        } else {
+            std::cout << "No local system logs captured.\n";
+        }
         return 0;
     }
 
@@ -485,16 +502,12 @@ int main(int argc, char* argv[]) {
     };
 
     std::vector<MenuItem> items;
-    items.push_back({"Run Demo Analysis (Built-in Samples)", []() {
-        run_demo(false, "reports/analysis_report.json", true);
-    }});
-
     if (os == "macos") {
-        items.push_back({"Analyze Historical macOS Logs (log show)", []() {
-            run_platform_log_analysis();
-        }});
         items.push_back({"Capture Real-Time Live Stream (log stream)", []() {
             run_live_stream_analysis();
+        }});
+        items.push_back({"Analyze Historical macOS Logs (log show)", []() {
+            run_platform_log_analysis();
         }});
     } else if (os == "linux") {
         items.push_back({"Analyze System Logs (journalctl)", []() {
