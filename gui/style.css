@@ -240,6 +240,61 @@ body {
   padding: 6px 10px;
 }
 
+.ribbon-subcol {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 4px;
+}
+
+.subcol-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.subcol-row label {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.classic-select {
+  padding: 2px 4px;
+  font-size: 11px;
+  border: 1px solid #adadad;
+  background: #ffffff;
+  border-radius: 2px;
+  font-family: inherit;
+  outline: none;
+}
+
+.classic-select:focus {
+  border-color: var(--win-blue);
+}
+
+.ribbon-hint {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.highlight-blue:hover {
+  background-color: #e5f1fb;
+  border-color: #0078d4;
+}
+
+.highlight-red:hover {
+  background-color: #fde7e9;
+  border-color: #d13438;
+}
+
+.tree-bullet {
+  color: var(--win-blue);
+  font-weight: bold;
+  margin-right: 2px;
+}
+
 .search-field-wrap {
   display: flex;
   flex-direction: column;

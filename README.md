@@ -65,7 +65,7 @@ A high-performance, cross-platform system utility engineered in **pure Standard 
 ## Core Features
 
 - **Zero External Dependencies**: Built entirely with the ISO C++17 standard library (no Boost, no third-party JSON/test libraries).
-- **Cross-Platform Visual GUI Dashboard (All GPOS)**: Includes a modern visual web-desktop dashboard in `gui/` launched instantly via `./bin/log_analyzer --gui` or `make gui` on macOS, Linux, and Windows with animated SVG risk gauge, severity distribution bars, subsystem distribution charts, and JSON import/export.
+- **Standalone Enterprise Desktop Application (All GPOS)**: Standalone desktop application window (macOS Cocoa native window, Linux, and Windows) launched via `./bin/log_analyzer --gui` or `make gui` without opening browser tabs. Styled like traditional enterprise desktop software (DevExpress/WinForms) with ribbon action bar, treeview navigation, classic data grid, details inspector, and live system log integration (`log show` historical trace and `log stream` kernel capture).
 - **Cross-Platform OS Ingestion**:
   - **macOS**: Persistent unified log queries (`log show`) and real-time Darwin kernel stream capture (`log stream` via POSIX `pipe()`, `fork()`, non-blocking `poll()`, and `kill(SIGKILL)` to prevent descriptor deadlocks).
   - **Linux**: Systemd journal ingestion (`journalctl --no-pager`) with `/var/log/syslog` fallback.

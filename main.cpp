@@ -14,6 +14,7 @@
 #include "include/report.hpp"
 #include "include/exporter.hpp"
 #include "include/tests.hpp"
+#include "include/server.hpp"
 
 static std::vector<LogRecord> SESSION_RECORDS;
 
@@ -336,19 +337,7 @@ static void run_search() {
 }
 
 static void launch_gui_dashboard() {
-    std::string os = detect_platform();
-    std::cout << "\nLaunching cross-platform GUI dashboard in default browser...\n";
-    std::string cmd;
-    if (os == "macos") {
-        cmd = "open gui/index.html &";
-    } else if (os == "windows") {
-        cmd = "start gui\\index.html";
-    } else {
-        cmd = "xdg-open gui/index.html &";
-    }
-    int res = std::system(cmd.c_str());
-    (void)res;
-    std::cout << "Dashboard opened: gui/index.html\n\n";
+    launch_desktop_gui();
 }
 
 static bool handle_cli_args(int argc, char* argv[]) {
@@ -363,7 +352,7 @@ static bool handle_cli_args(int argc, char* argv[]) {
                   << "Options:\n"
                   << "  --demo               Run analysis on built-in sample log corpus\n"
                   << "  --file <path>        Analyze specified log file\n"
-                  << "  --gui                Launch interactive GUI dashboard in default browser\n"
+                  << "  --gui                Launch standalone desktop application window (GPOS native)\n"
                   << "  --export <path>      Export structured JSON analysis report to path\n"
                   << "  --test               Execute unit tests and fault-injection suite\n"
                   << "  --platform           Query and analyze native OS logs automatically\n"

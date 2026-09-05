@@ -15,7 +15,7 @@
             <path d="M2 1h12a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm1 2v10h10V3H3zm2 2h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/>
           </svg>
         </div>
-        <span class="window-title">System Log Analyzer & Error Detector Enterprise - [Default Workspace]</span>
+        <span class="window-title">System Log Analyzer & Error Detector Enterprise - [GPOS Native Console]</span>
       </div>
       <div class="titlebar-controls">
         <button class="win-btn" title="Minimize">&#8211;</button>
@@ -36,13 +36,16 @@
           <button class="dropdown-opt" id="menuClear">Clear Workspace</button>
         </div>
       </div>
-      <div class="menu-item" data-menu="datasets">
-        <span>Sample Corpora</span>
+      <div class="menu-item" data-menu="ingestion">
+        <span>OS Ingestion</span>
         <div class="dropdown-menu">
-          <button class="dropdown-opt" data-sample="demo">Load Built-in Demo Corpus</button>
-          <button class="dropdown-opt" data-sample="auth">Auth Attack (Brute-Force Loop)</button>
-          <button class="dropdown-opt" data-sample="spike">Network Outage (Spike Cascade)</button>
-          <button class="dropdown-opt" data-sample="system">System Failure (OOM & Database)</button>
+          <button class="dropdown-opt" id="menuHist1m">Analyze Historical Trace (1 min window)</button>
+          <button class="dropdown-opt" id="menuHist5m">Analyze Historical Trace (5 min window)</button>
+          <button class="dropdown-opt" id="menuHist15m">Analyze Historical Trace (15 min window)</button>
+          <div class="menu-divider"></div>
+          <button class="dropdown-opt" id="menuStream3s">Capture Real-Time Stream (3 seconds)</button>
+          <button class="dropdown-opt" id="menuStream5s">Capture Real-Time Stream (5 seconds)</button>
+          <button class="dropdown-opt" id="menuStream10s">Capture Real-Time Stream (10 seconds)</button>
         </div>
       </div>
       <div class="menu-item" data-menu="view">
@@ -94,24 +97,45 @@
 
       <div class="ribbon-group">
         <div class="ribbon-buttons">
-          <button class="ribbon-btn" data-sample="demo">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
-            <span>Demo Corpus</span>
+          <button class="ribbon-btn large highlight-blue" id="btnHistoricalAction">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0078d4" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span>Historical Logs</span>
           </button>
-          <button class="ribbon-btn" data-sample="auth">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d83b01" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <span>Auth Attack</span>
+          <div class="ribbon-subcol">
+            <div class="subcol-row">
+              <label for="selectHistWindow">Window:</label>
+              <select id="selectHistWindow" class="classic-select">
+                <option value="1">1 min</option>
+                <option value="5" selected>5 min</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+              </select>
+            </div>
+            <span class="ribbon-hint">log show (syslog)</span>
+          </div>
+
+          <button class="ribbon-btn large highlight-red" id="btnStreamAction">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d13438" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            <span>Live Stream</span>
           </button>
-          <button class="ribbon-btn" data-sample="spike">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            <span>Outage Spike</span>
-          </button>
-          <button class="ribbon-btn" data-sample="system">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e81123" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span>Crash Event</span>
-          </button>
+          <div class="ribbon-subcol">
+            <div class="subcol-row">
+              <label for="selectStreamDuration">Duration:</label>
+              <select id="selectStreamDuration" class="classic-select">
+                <option value="3">3 sec</option>
+                <option value="5" selected>5 sec</option>
+                <option value="10">10 sec</option>
+              </select>
+            </div>
+            <span class="ribbon-hint">log stream (kernel)</span>
+          </div>
         </div>
-        <span class="ribbon-label">Sample Data</span>
+        <span class="ribbon-label">GPOS Log Ingestion (Darwin / POSIX / Win)</span>
       </div>
 
       <div class="ribbon-divider"></div>
@@ -150,35 +174,35 @@
         </div>
         <div class="sidebar-tree">
           <div class="tree-node expanded">
-            <div class="node-header"><span class="tree-arrow">&#9660;</span> 📁 Active Workspace</div>
+            <div class="node-header"><span class="tree-arrow">&#9660;</span> Active Workspace</div>
             <div class="node-children">
-              <div class="tree-item active" id="treeItemGrid"><span class="tree-icon">📄</span> All Events Log Grid</div>
-              <div class="tree-item" id="treeItemDashboard"><span class="tree-icon">📊</span> Analysis & Risk Dashboard</div>
-              <div class="tree-item" id="treeItemRules"><span class="tree-icon">🛡️</span> Detection Rules (R001-R005)</div>
+              <div class="tree-item active" id="treeItemGrid"><span class="tree-bullet">&bull;</span> All Events Log Grid</div>
+              <div class="tree-item" id="treeItemDashboard"><span class="tree-bullet">&bull;</span> Analysis & Risk Dashboard</div>
+              <div class="tree-item" id="treeItemRules"><span class="tree-bullet">&bull;</span> Detection Rules (R001-R005)</div>
             </div>
           </div>
 
           <div class="tree-node expanded">
-            <div class="node-header"><span class="tree-arrow">&#9660;</span> 📁 Subsystem Filters</div>
+            <div class="node-header"><span class="tree-arrow">&#9660;</span> Subsystem Filters</div>
             <div class="node-children">
-              <div class="tree-item" data-cat="ALL"><span class="tree-icon">🌐</span> All Subsystems (<span id="countCatAll">0</span>)</div>
-              <div class="tree-item" data-cat="SYSTEM"><span class="tree-icon">⚙️</span> SYSTEM (<span id="countCatSystem">0</span>)</div>
-              <div class="tree-item" data-cat="NETWORK"><span class="tree-icon">🔌</span> NETWORK (<span id="countCatNetwork">0</span>)</div>
-              <div class="tree-item" data-cat="SECURITY"><span class="tree-icon">🔒</span> SECURITY (<span id="countCatSecurity">0</span>)</div>
-              <div class="tree-item" data-cat="RESOURCE"><span class="tree-icon">💾</span> RESOURCE (<span id="countCatResource">0</span>)</div>
-              <div class="tree-item" data-cat="FILE"><span class="tree-icon">📁</span> FILE (<span id="countCatFile">0</span>)</div>
-              <div class="tree-item" data-cat="PROCESS"><span class="tree-icon">⚡</span> PROCESS (<span id="countCatProcess">0</span>)</div>
+              <div class="tree-item" data-cat="ALL"><span class="tree-bullet">&bull;</span> All Subsystems (<span id="countCatAll">0</span>)</div>
+              <div class="tree-item" data-cat="SYSTEM"><span class="tree-bullet">&bull;</span> SYSTEM (<span id="countCatSystem">0</span>)</div>
+              <div class="tree-item" data-cat="NETWORK"><span class="tree-bullet">&bull;</span> NETWORK (<span id="countCatNetwork">0</span>)</div>
+              <div class="tree-item" data-cat="SECURITY"><span class="tree-bullet">&bull;</span> SECURITY (<span id="countCatSecurity">0</span>)</div>
+              <div class="tree-item" data-cat="RESOURCE"><span class="tree-bullet">&bull;</span> RESOURCE (<span id="countCatResource">0</span>)</div>
+              <div class="tree-item" data-cat="FILE"><span class="tree-bullet">&bull;</span> FILE (<span id="countCatFile">0</span>)</div>
+              <div class="tree-item" data-cat="PROCESS"><span class="tree-bullet">&bull;</span> PROCESS (<span id="countCatProcess">0</span>)</div>
             </div>
           </div>
 
           <div class="tree-node expanded">
-            <div class="node-header"><span class="tree-arrow">&#9660;</span> 📁 System Telemetry</div>
+            <div class="node-header"><span class="tree-arrow">&#9660;</span> System Telemetry</div>
             <div class="node-children">
               <div class="telemetry-box">
                 <div class="telem-row"><span>Host OS:</span> <strong id="telemOS">macOS Darwin</strong></div>
                 <div class="telem-row"><span>Execution Speed:</span> <strong id="telemThroughput">0 EPS</strong></div>
                 <div class="telem-row"><span>Parse Fidelity:</span> <strong id="telemFidelity">100.0%</strong></div>
-                <div class="telem-row"><span>Process Footprint:</span> <strong>2.2 MB RSS</strong></div>
+                <div class="telem-row"><span>Process Footprint:</span> <strong id="telemMemory">2.2 MB RSS</strong></div>
               </div>
             </div>
           </div>
@@ -188,13 +212,13 @@
       <main class="main-content-panel">
         <div class="tab-control-bar">
           <button class="tab-btn active" id="tabBtnGrid">
-            <span class="tab-icon">📋</span> Event Log Explorer
+            Event Log Explorer
           </button>
           <button class="tab-btn" id="tabBtnDashboard">
-            <span class="tab-icon">📊</span> Analytical Metrics & Risk
+            Analytical Metrics & Risk
           </button>
           <button class="tab-btn" id="tabBtnRules">
-            <span class="tab-icon">🛡️</span> Anomaly Rules & Guidance
+            Anomaly Rules & Guidance
           </button>
         </div>
 
@@ -204,15 +228,15 @@
               <thead>
                 <tr>
                   <th style="width: 75px;">Seq No</th>
-                  <th style="width: 165px;">Timestamp</th>
-                  <th style="width: 85px;">Severity</th>
-                  <th style="width: 100px;">Subsystem</th>
+                  <th style="width: 175px;">Timestamp</th>
+                  <th style="width: 90px;">Severity</th>
+                  <th style="width: 110px;">Subsystem</th>
                   <th>Log Message & Event Detail</th>
                 </tr>
               </thead>
               <tbody id="gridBody">
                 <tr>
-                  <td colspan="5" class="empty-message">No log events loaded. Click "Open Log" or select a sample from the toolbar.</td>
+                  <td colspan="5" class="empty-message">No log events loaded. Click "Historical Logs" to query OS trace or "Live Stream" to capture kernel stream.</td>
                 </tr>
               </tbody>
             </table>

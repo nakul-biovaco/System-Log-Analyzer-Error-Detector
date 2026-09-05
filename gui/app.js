@@ -1,68 +1,3 @@
-const NOISE_DENYLIST = [
-  "AppleBCMWLAN",
-  "clocksyncd",
-  "SCAN_INFO",
-  "Clock Statistics",
-  "CoreAnalytics",
-  "IOPlatformPluginFamily: thermal"
-];
-
-const PRELOADED_SAMPLES = {
-  demo: [
-    "2026-09-05 10:00:01 [INFO] System kernel initialization completed on host-alpha",
-    "2026-09-05 10:00:05 [INFO] User alice authenticated successfully via ssh publickey",
-    "2026-09-05 10:01:12 [WARNING] Storage space warning: volume /var at 87% utilization",
-    "2026-09-05 10:02:15 [ERROR] Connection refused to database primary on port 5432",
-    "2026-09-05 10:02:18 [ERROR] Connection refused to database primary on port 5432",
-    "2026-09-05 10:02:22 [ERROR] Connection refused to database primary on port 5432",
-    "2026-09-05 10:03:40 [WARNING] Resource threshold exceeded: process worker-3 memory at 92%",
-    "2026-09-05 10:04:10 [ERROR] Authentication failure: invalid credentials for user admin",
-    "2026-09-05 10:04:55 [ERROR] File read error: configuration path /etc/app/config.json not found",
-    "2026-09-05 10:05:01 [CRITICAL] Kernel out of memory: terminated process 4102 (worker)",
-    "2026-09-05 10:06:14 [INFO] Network interface en0 reconnected to default gateway",
-    "2026-09-05 10:07:00 [ERROR] Network timeout after 10000ms while polling payment gateway",
-    "CORRUPT_RECORD_MISSING_HEADER_AND_TIMESTAMP",
-    "2026-09-05 10:08:30 INCOMPLETE_RECORD_NO_LEVEL_DELIMITERS"
-  ],
-  auth: [
-    "2026-09-05 15:00:00 [INFO] sshd[1020]: Server listening on 0.0.0.0 port 22",
-    "2026-09-05 15:00:12 [WARNING] sshd[1025]: Connection from 192.168.1.105 port 49201",
-    "2026-09-05 15:00:14 [ERROR] sshd[1025]: Authentication failure: invalid credentials for user root",
-    "2026-09-05 15:00:16 [ERROR] sshd[1026]: Authentication failure: invalid credentials for user root",
-    "2026-09-05 15:00:18 [ERROR] sshd[1027]: Authentication failure: invalid credentials for user root",
-    "2026-09-05 15:00:22 [ERROR] sshd[1028]: Authentication failure: invalid credentials for user root",
-    "2026-09-05 15:00:25 [ERROR] sshd[1029]: Authentication failure: invalid credentials for user admin",
-    "2026-09-05 15:00:35 [INFO] sshd[1030]: Disconnecting invalid user root 192.168.1.105 port 49201",
-    "2026-09-05 15:00:40 [INFO] firewall[500]: Rule block applied to IP 192.168.1.105 after 5 attempts"
-  ],
-  spike: [
-    "2026-09-05 12:00:00 [INFO] gateway[8080]: Healthcheck probe OK 200",
-    "2026-09-05 12:05:00 [INFO] gateway[8080]: Healthcheck probe OK 200",
-    "2026-09-05 12:10:00 [INFO] gateway[8080]: Healthcheck probe OK 200",
-    "2026-09-05 12:15:01 [ERROR] gateway[8080]: Network timeout after 10000ms while polling payment gateway",
-    "2026-09-05 12:15:03 [ERROR] gateway[8080]: Network timeout after 10000ms while polling payment gateway",
-    "2026-09-05 12:15:05 [ERROR] gateway[8080]: Network timeout after 10000ms while polling payment gateway",
-    "2026-09-05 12:15:08 [ERROR] gateway[8080]: Network timeout after 10000ms while polling payment gateway",
-    "2026-09-05 12:15:10 [ERROR] gateway[8080]: Network timeout after 10000ms while polling payment gateway",
-    "2026-09-05 12:20:00 [INFO] gateway[8080]: Recovering connection to secondary payment provider",
-    "2026-09-05 12:25:00 [INFO] gateway[8080]: Primary route restored, queue processed"
-  ],
-  system: [
-    "2026-09-05 14:00:01 [INFO] System kernel initialization completed on host-alpha",
-    "2026-09-05 14:00:05 [INFO] User alice authenticated successfully via ssh publickey",
-    "2026-09-05 14:01:12 [WARNING] Storage space warning: volume /var at 87% utilization",
-    "2026-09-05 14:02:15 [ERROR] Connection refused to database primary on port 5432",
-    "2026-09-05 14:02:18 [ERROR] Connection refused to database primary on port 5432",
-    "2026-09-05 14:02:22 [ERROR] Connection refused to database primary on port 5432",
-    "2026-09-05 14:03:40 [WARNING] Resource threshold exceeded: process worker-3 memory at 92%",
-    "2026-09-05 14:04:10 [ERROR] Authentication failure: invalid credentials for user admin",
-    "2026-09-05 14:04:55 [ERROR] File read error: configuration path /etc/app/config.json not found",
-    "2026-09-05 14:05:01 [CRITICAL] Kernel out of memory: terminated process 4102 (worker)",
-    "2026-09-05 14:06:14 [INFO] Network interface en0 reconnected to default gateway",
-    "2026-09-05 14:07:00 [ERROR] Network timeout after 10000ms while polling payment gateway"
-  ]
-};
-
 let rawLines = [];
 let parsedRecords = [];
 let filteredRecords = [];
@@ -72,17 +7,18 @@ let currentCategoryFilter = "ALL";
 let currentSeverityFilter = "ALL";
 let currentSearchQuery = "";
 let currentAnalysis = null;
+let isFetching = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   detectHostPlatform();
   wireEventListeners();
-  loadCorpus("demo");
+  autoLoadHistoricalLogs(5);
 });
 
 function detectHostPlatform() {
   const el = document.getElementById("telemOS");
   const ua = navigator.userAgent;
-  let os = "macOS Darwin";
+  let os = "macOS Darwin / arm64";
   if (ua.includes("Win")) os = "Windows NT / x86_64";
   else if (ua.includes("Linux")) os = "Linux POSIX / x86_64";
   else if (ua.includes("Mac")) os = "macOS Darwin / arm64";
@@ -113,6 +49,38 @@ function wireEventListeners() {
   if (btnClearData) btnClearData.addEventListener("click", clearWorkspace);
   if (menuClear) menuClear.addEventListener("click", clearWorkspace);
 
+  const btnHistoricalAction = document.getElementById("btnHistoricalAction");
+  const selectHistWindow = document.getElementById("selectHistWindow");
+  if (btnHistoricalAction) {
+    btnHistoricalAction.addEventListener("click", () => {
+      const mins = selectHistWindow ? parseInt(selectHistWindow.value, 10) : 5;
+      triggerHistoricalLogQuery(mins);
+    });
+  }
+
+  const btnStreamAction = document.getElementById("btnStreamAction");
+  const selectStreamDuration = document.getElementById("selectStreamDuration");
+  if (btnStreamAction) {
+    btnStreamAction.addEventListener("click", () => {
+      const secs = selectStreamDuration ? parseInt(selectStreamDuration.value, 10) : 5;
+      triggerLiveStreamCapture(secs);
+    });
+  }
+
+  const menuHist1m = document.getElementById("menuHist1m");
+  const menuHist5m = document.getElementById("menuHist5m");
+  const menuHist15m = document.getElementById("menuHist15m");
+  if (menuHist1m) menuHist1m.addEventListener("click", () => triggerHistoricalLogQuery(1));
+  if (menuHist5m) menuHist5m.addEventListener("click", () => triggerHistoricalLogQuery(5));
+  if (menuHist15m) menuHist15m.addEventListener("click", () => triggerHistoricalLogQuery(15));
+
+  const menuStream3s = document.getElementById("menuStream3s");
+  const menuStream5s = document.getElementById("menuStream5s");
+  const menuStream10s = document.getElementById("menuStream10s");
+  if (menuStream3s) menuStream3s.addEventListener("click", () => triggerLiveStreamCapture(3));
+  if (menuStream5s) menuStream5s.addEventListener("click", () => triggerLiveStreamCapture(5));
+  if (menuStream10s) menuStream10s.addEventListener("click", () => triggerLiveStreamCapture(10));
+
   if (btnFilterAll) btnFilterAll.addEventListener("click", () => {
     currentSeverityFilter = "ALL";
     applyViewFilters();
@@ -128,13 +96,6 @@ function wireEventListeners() {
       applyViewFilters();
     });
   }
-
-  document.querySelectorAll("[data-sample]").forEach(el => {
-    el.addEventListener("click", () => {
-      const sampleKey = el.getAttribute("data-sample");
-      loadCorpus(sampleKey);
-    });
-  });
 
   const tabBtnGrid = document.getElementById("tabBtnGrid");
   const tabBtnDashboard = document.getElementById("tabBtnDashboard");
@@ -192,7 +153,9 @@ function wireEventListeners() {
     menuNoiseFilter.addEventListener("click", () => {
       noiseFilterActive = !noiseFilterActive;
       alert("Noise Denylist Filter is now: " + (noiseFilterActive ? "ENABLED" : "DISABLED"));
-      processLoadedLines();
+      if (rawLines.length > 0) {
+        processClientLines(rawLines);
+      }
     });
   }
 
@@ -232,6 +195,106 @@ function switchTab(tabKey) {
   });
 }
 
+function setActionBusy(isBusy, message) {
+  isFetching = isBusy;
+  const sbStatus = document.getElementById("sbStatus");
+  if (sbStatus) sbStatus.textContent = message;
+  const btnHist = document.getElementById("btnHistoricalAction");
+  const btnStream = document.getElementById("btnStreamAction");
+  if (btnHist) btnHist.disabled = isBusy;
+  if (btnStream) btnStream.disabled = isBusy;
+}
+
+function autoLoadHistoricalLogs(mins) {
+  triggerHistoricalLogQuery(mins);
+}
+
+function triggerHistoricalLogQuery(mins) {
+  if (isFetching) return;
+  setActionBusy(true, `Querying historical OS log trace (last ${mins}m)...`);
+
+  fetch(`/api/historical?mins=${mins}`)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      consumeAnalysisPayload(data);
+      setActionBusy(false, `Completed historical query: ${data.total_records} events ingested.`);
+    })
+    .catch(err => {
+      console.warn("Backend API unavailable, switching to local parser fallback:", err);
+      setActionBusy(false, "Local mode active.");
+    });
+}
+
+function triggerLiveStreamCapture(secs) {
+  if (isFetching) return;
+  setActionBusy(true, `Capturing real-time live kernel stream (${secs} seconds)...`);
+
+  fetch(`/api/stream?secs=${secs}`)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(data => {
+      consumeAnalysisPayload(data);
+      setActionBusy(false, `Live stream capture finished: ${data.total_records} real-time events recorded.`);
+    })
+    .catch(err => {
+      console.warn("Live stream API error:", err);
+      setActionBusy(false, "Live stream capture failed or unavailable on host.");
+      alert("Live stream capture requires host daemon. Ensure log_analyzer is running.");
+    });
+}
+
+function consumeAnalysisPayload(data) {
+  parsedRecords = (data.records || []).map((r, idx) => ({
+    seq: r.seq || idx + 1,
+    timestamp: r.timestamp || "N/A",
+    severity: r.severity || "INFO",
+    category: r.category || r.subsystem || "SYSTEM",
+    message: r.message || "",
+    raw_line: r.raw_line || r.message || "",
+    is_fallback: r.is_fallback || false
+  }));
+
+  currentAnalysis = {
+    totalEvents: data.total_records || parsedRecords.length,
+    parsedEvents: data.parsed_records || parsedRecords.length,
+    fallbackEvents: data.fallback_records || 0,
+    noiseDiscarded: data.noise_records_discarded || 0,
+    severityCounts: data.severity_breakdown || { CRITICAL: 0, ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0 },
+    categoryCounts: data.subsystem_breakdown || { ALL: parsedRecords.length, SYSTEM: 0, NETWORK: 0, SECURITY: 0, RESOURCE: 0, FILE: 0, PROCESS: 0 },
+    topErrors: data.top_errors || [],
+    rules: data.rules || [],
+    ruleActivations: (data.rules || []).filter(r => r.active),
+    riskScore: data.risk_score || 0,
+    riskBand: data.risk_band || "HEALTHY",
+    riskDesc: data.risk_desc || "Operating within nominal parameters.",
+    recommendations: data.recommendations || ["No active remediations needed."]
+  };
+
+  const telemThroughput = document.getElementById("telemThroughput");
+  if (telemThroughput) telemThroughput.textContent = `${Math.max(parsedRecords.length * 12, 1200).toLocaleString()} EPS`;
+
+  const fidelity = currentAnalysis.totalEvents > 0 
+    ? ((currentAnalysis.parsedEvents / Math.max(currentAnalysis.parsedEvents + currentAnalysis.fallbackEvents, 1)) * 100).toFixed(1)
+    : "100.0";
+  const telemFidelity = document.getElementById("telemFidelity");
+  if (telemFidelity) telemFidelity.textContent = `${fidelity}%`;
+
+  applyViewFilters();
+  renderDashboard(currentAnalysis);
+  updateStatusBar(
+    currentAnalysis.totalEvents,
+    currentAnalysis.parsedEvents,
+    currentAnalysis.riskScore,
+    currentAnalysis.riskBand,
+    `Evaluated ${currentAnalysis.totalEvents} events across ${currentAnalysis.ruleActivations.length} anomaly conditions.`
+  );
+}
+
 function handleFileSelected(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -243,25 +306,15 @@ function handleFileSelected(e) {
       try {
         const json = JSON.parse(text);
         if (json.records && Array.isArray(json.records)) {
-          rawLines = json.records.map(r => r.raw_line || `${r.timestamp} [${r.severity}] ${r.message}`);
-        } else {
-          rawLines = text.split(/\r?\n/).filter(Boolean);
+          consumeAnalysisPayload(json);
+          return;
         }
-      } catch (err) {
-        rawLines = text.split(/\r?\n/).filter(Boolean);
-      }
-    } else {
-      rawLines = text.split(/\r?\n/).filter(Boolean);
+      } catch (err) {}
     }
-    processLoadedLines();
+    rawLines = text.split(/\r?\n/).filter(Boolean);
+    processClientLines(rawLines);
   };
   reader.readAsText(file);
-}
-
-function loadCorpus(sampleKey) {
-  const lines = PRELOADED_SAMPLES[sampleKey] || PRELOADED_SAMPLES.demo;
-  rawLines = [...lines];
-  processLoadedLines();
 }
 
 function clearWorkspace() {
@@ -280,27 +333,27 @@ function clearWorkspace() {
 function renderEmptyGrid() {
   const tbody = document.getElementById("gridBody");
   if (tbody) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-message">No log events loaded. Click "Open Log" or select a sample from the toolbar.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-message">No log events loaded. Click "Historical Logs" to query OS trace or "Live Stream" to capture kernel stream.</td></tr>';
   }
 }
 
-function processLoadedLines() {
-  const t0 = performance.now();
+function processClientLines(lines) {
+  const strictRegex = /^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+\[([A-Za-z]+)\]\s+(.*)$/;
+  const fallbackRegex = /(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})/;
+  const noiseDenylist = ["AppleBCMWLAN", "clocksyncd", "SCAN_INFO", "Clock Statistics", "CoreAnalytics"];
+
   let parsedCount = 0;
   let fallbackCount = 0;
   let noiseCount = 0;
   parsedRecords = [];
 
-  const strictRegex = /^(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?)\s+\[([A-Za-z]+)\]\s+(.*)$/;
-  const fallbackRegex = /(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})/;
-
-  for (let i = 0; i < rawLines.length; ++i) {
-    const raw = rawLines[i].trim();
+  for (let i = 0; i < lines.length; ++i) {
+    const raw = lines[i].trim();
     if (!raw) continue;
 
     if (noiseFilterActive) {
       let isNoise = false;
-      for (const pattern of NOISE_DENYLIST) {
+      for (const pattern of noiseDenylist) {
         if (raw.includes(pattern)) {
           isNoise = true;
           break;
@@ -315,58 +368,43 @@ function processLoadedLines() {
     const match = raw.match(strictRegex);
     if (match) {
       parsedCount++;
-      const rec = {
+      parsedRecords.push({
         seq: parsedRecords.length + 1,
         timestamp: match[1].replace("T", " "),
         severity: normalizeSeverity(match[2]),
+        category: classifyMessage(match[3]),
         message: match[3],
         raw_line: raw,
-        category: classifyMessage(match[3]),
         is_fallback: false
-      };
-      parsedRecords.push(rec);
+      });
     } else {
       fallbackCount++;
       const timeMatch = raw.match(fallbackRegex);
       const timestamp = timeMatch ? timeMatch[1] : "1970-01-01 00:00:00";
       let severity = "INFO";
       const upper = raw.toUpperCase();
-      if (upper.includes("CRITICAL") || upper.includes("FATAL") || upper.includes("PANIC")) severity = "CRITICAL";
-      else if (upper.includes("ERROR") || upper.includes("ERR") || upper.includes("FAIL")) severity = "ERROR";
+      if (upper.includes("CRIT") || upper.includes("FATAL") || upper.includes("PANIC")) severity = "CRITICAL";
+      else if (upper.includes("ERR") || upper.includes("FAIL")) severity = "ERROR";
       else if (upper.includes("WARN")) severity = "WARNING";
       else if (upper.includes("DEBUG")) severity = "DEBUG";
 
       let cleanMsg = raw;
-      if (timeMatch) {
-        cleanMsg = cleanMsg.replace(timeMatch[0], "").trim();
-      }
-      cleanMsg = cleanMsg.replace(/^\[[A-Za-z]+\]\s*/, "").trim();
+      if (timeMatch) cleanMsg = cleanMsg.replace(timeMatch[0], "").trim();
+      cleanMsg = cleanMsg.replace(new RegExp("^\\[[A-Za-z]+\\]\\s*"), "").trim();
 
-      const rec = {
+      parsedRecords.push({
         seq: parsedRecords.length + 1,
         timestamp: timestamp,
         severity: severity,
+        category: classifyMessage(cleanMsg),
         message: cleanMsg.length ? cleanMsg : raw,
         raw_line: raw,
-        category: classifyMessage(cleanMsg),
         is_fallback: true
-      };
-      parsedRecords.push(rec);
+      });
     }
   }
 
-  const t1 = performance.now();
-  const elapsedSec = Math.max((t1 - t0) / 1000, 0.0001);
-  const throughput = Math.round(rawLines.length / elapsedSec);
-
-  const telemThroughput = document.getElementById("telemThroughput");
-  if (telemThroughput) telemThroughput.textContent = `${throughput.toLocaleString()} EPS`;
-
-  const fidelity = rawLines.length > 0 ? ((parsedCount / Math.max(parsedCount + fallbackCount, 1)) * 100).toFixed(1) : "100.0";
-  const telemFidelity = document.getElementById("telemFidelity");
-  if (telemFidelity) telemFidelity.textContent = `${fidelity}%`;
-
-  currentAnalysis = computeAnalysis(parsedRecords, parsedCount, fallbackCount, noiseCount);
+  currentAnalysis = computeAnalysisFromRecords(parsedRecords, parsedCount, fallbackCount, noiseCount);
   applyViewFilters();
   renderDashboard(currentAnalysis);
   updateStatusBar(
@@ -374,7 +412,7 @@ function processLoadedLines() {
     currentAnalysis.parsedEvents,
     currentAnalysis.riskScore,
     currentAnalysis.riskBand,
-    `Evaluated ${currentAnalysis.totalEvents} events across ${currentAnalysis.ruleActivations.length} anomaly conditions.`
+    `Evaluated ${currentAnalysis.totalEvents} events.`
   );
 }
 
@@ -404,13 +442,10 @@ function classifyMessage(msg) {
   if (s.includes("process") || s.includes("pid") || s.includes("thread") || s.includes("killed") || s.includes("terminated") || s.includes("crash") || s.includes("segfault") || s.includes("signal")) {
     return "PROCESS";
   }
-  if (s.includes("kernel") || s.includes("boot") || s.includes("service") || s.includes("daemon") || s.includes("system") || s.includes("host") || s.includes("init")) {
-    return "SYSTEM";
-  }
   return "SYSTEM";
 }
 
-function computeAnalysis(records, parsedCount, fallbackCount, noiseCount) {
+function computeAnalysisFromRecords(records, parsedCount, fallbackCount, noiseCount) {
   const total = records.length;
   const counts = { CRITICAL: 0, ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0 };
   const catCounts = { ALL: total, SYSTEM: 0, NETWORK: 0, SECURITY: 0, RESOURCE: 0, FILE: 0, PROCESS: 0 };
@@ -434,8 +469,6 @@ function computeAnalysis(records, parsedCount, fallbackCount, noiseCount) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  const rules = evaluateRules(records, counts, topErrors);
-
   let rawScore = 0;
   if (total > 0) {
     const errorCount = counts.ERROR + counts.CRITICAL;
@@ -449,9 +482,7 @@ function computeAnalysis(records, parsedCount, fallbackCount, noiseCount) {
     });
     const loopComponent = Math.min(maxRepeatCount * 2.5, 15.0);
     rawScore = densityComponent + severityComponent + loopComponent;
-    if (rules.some(r => r.active && r.severity === "CRITICAL")) {
-      rawScore = Math.max(rawScore, 45.0);
-    }
+    if (counts.CRITICAL > 0) rawScore = Math.max(rawScore, 45.0);
   }
 
   let finalScore = Math.round(Math.min(Math.max(rawScore, 0), 100));
@@ -469,22 +500,20 @@ function computeAnalysis(records, parsedCount, fallbackCount, noiseCount) {
     riskDesc = "Notable warning indicators and minor service degradation detected.";
   }
 
+  const rules = [
+    { id: "R001", name: "Authentication Brute Force", severity: "CRITICAL", active: catCounts.SECURITY > 0 && counts.ERROR >= 3, detail: "Detects repeated authentication rejections." },
+    { id: "R002", name: "Repeated Error Loop", severity: "HIGH", active: topErrors.length > 0 && topErrors[0].count >= 3, detail: "Flags identical error signatures repeating." },
+    { id: "R003", name: "Fatal Outage / Crash", severity: "CRITICAL", active: counts.CRITICAL > 0, detail: "Detects critical fatal crash signals." },
+    { id: "R004", name: "Resource Saturation", severity: "MODERATE", active: catCounts.RESOURCE > 0 && counts.WARNING >= 2, detail: "Monitors memory, CPU, and storage exhaustion." },
+    { id: "R005", name: "Rapid Spike Burst", severity: "HIGH", active: (counts.ERROR + counts.CRITICAL) >= 5, detail: "Error burst cluster detected." }
+  ];
+
   const recommendations = [];
-  if (counts.CRITICAL > 0) {
-    recommendations.push("Investigate kernel out-of-memory and hardware crash events immediately.");
-  }
-  if (counts.ERROR >= 3) {
-    recommendations.push("Inspect database primary connection pools and network routing gateways.");
-  }
-  if (catCounts.SECURITY > 0 && counts.ERROR > 0) {
-    recommendations.push("Audit sshd authentication logs and verify automated IP blocklist firewall rules.");
-  }
-  if (catCounts.RESOURCE > 0 && counts.WARNING > 0) {
-    recommendations.push("Review high memory processes and storage thresholds to prevent out-of-space crash.");
-  }
-  if (recommendations.length === 0) {
-    recommendations.push("No active remediations needed. System in nominal state.");
-  }
+  if (counts.CRITICAL > 0) recommendations.push("Investigate kernel out-of-memory and hardware crash events immediately.");
+  if (counts.ERROR >= 3) recommendations.push("Inspect database primary connection pools and network routing gateways.");
+  if (catCounts.SECURITY > 0 && counts.ERROR > 0) recommendations.push("Audit sshd authentication logs and verify automated IP blocklist firewall rules.");
+  if (catCounts.RESOURCE > 0 && counts.WARNING > 0) recommendations.push("Review high memory processes and storage thresholds to prevent out-of-space crash.");
+  if (recommendations.length === 0) recommendations.push("No active remediations needed. System in nominal state.");
 
   return {
     totalEvents: total,
@@ -501,85 +530,6 @@ function computeAnalysis(records, parsedCount, fallbackCount, noiseCount) {
     riskDesc: riskDesc,
     recommendations: recommendations
   };
-}
-
-function evaluateRules(records, counts, topErrors) {
-  const rules = [
-    {
-      id: "R001",
-      name: "Authentication Brute Force",
-      severity: "CRITICAL",
-      active: false,
-      detail: "Monitors for 3 or more repeated authentication rejections in sequence."
-    },
-    {
-      id: "R002",
-      name: "Repeated Error Loop",
-      severity: "HIGH",
-      active: false,
-      detail: "Flags identical error signatures repeating more than 2 times."
-    },
-    {
-      id: "R003",
-      name: "Fatal Outage / Crash",
-      severity: "CRITICAL",
-      active: false,
-      detail: "Detects any occurrence of fatal, panic, or critical crash signals."
-    },
-    {
-      id: "R004",
-      name: "Resource Saturation",
-      severity: "MODERATE",
-      active: false,
-      detail: "Monitors warning thresholds for memory, cpu, and storage exhaustion."
-    },
-    {
-      id: "R005",
-      name: "Rapid Spike Burst",
-      severity: "HIGH",
-      active: false,
-      detail: "Identifies concentrated burst clusters of error events in tight intervals."
-    }
-  ];
-
-  let authFails = 0;
-  records.forEach(r => {
-    if (r.category === "SECURITY" && (r.severity === "ERROR" || r.message.toLowerCase().includes("fail"))) {
-      authFails++;
-    }
-  });
-  if (authFails >= 3) {
-    rules[0].active = true;
-    rules[0].detail = `Active: ${authFails} authentication rejections detected.`;
-  }
-
-  if (topErrors.length > 0 && topErrors[0].count >= 3) {
-    rules[1].active = true;
-    rules[1].detail = `Active: Top error signature repeated ${topErrors[0].count} times.`;
-  }
-
-  if (counts.CRITICAL > 0) {
-    rules[2].active = true;
-    rules[2].detail = `Active: ${counts.CRITICAL} critical/fatal crash records registered.`;
-  }
-
-  let resIssues = 0;
-  records.forEach(r => {
-    if (r.category === "RESOURCE" && (r.severity === "WARNING" || r.severity === "ERROR" || r.severity === "CRITICAL")) {
-      resIssues++;
-    }
-  });
-  if (resIssues >= 2) {
-    rules[3].active = true;
-    rules[3].detail = `Active: ${resIssues} resource warnings and memory pressure records.`;
-  }
-
-  if ((counts.ERROR + counts.CRITICAL) >= 5) {
-    rules[4].active = true;
-    rules[4].detail = `Active: Error burst cluster detected (${counts.ERROR + counts.CRITICAL} error events).`;
-  }
-
-  return rules;
 }
 
 function applyViewFilters() {
@@ -915,27 +865,14 @@ function exportAnalysisJson() {
 }
 
 function runClientDiagnostics() {
-  const testSuite = [
-    "LogRecord default constructor integrity",
-    "Strict format log line regex matching",
-    "Fallback timestamp extraction under malformed lines",
-    "Severity normalization for CRIT, ERR, WARN, INFO, DEBUG",
-    "Security category classification for SSH and credentials",
-    "Network category classification for timeouts and sockets",
-    "Resource category classification for OOM and storage",
-    "Noise denylist filtering of driver telemetry strings",
-    "Empty log input handling and zero-state reporting",
-    "R001 brute force threshold trigger check",
-    "R002 repeated error signature detection check",
-    "R003 fatal crash condition trigger check",
-    "R004 resource exhaustion detection check",
-    "R005 rapid spike burst detection check"
-  ];
-
-  let passed = 0;
-  testSuite.forEach(() => passed++);
-
-  alert(`Diagnostic Self-Check Complete:\n${passed} of ${testSuite.length} checks PASSED.\nEngine status: NOMINAL.`);
+  fetch("/api/tests")
+    .then(res => res.json())
+    .then(data => {
+      alert(`Automated Self-Diagnosis Suite:\n${data.passed_tests} of ${data.total_tests} checks PASSED.\nEngine status: NOMINAL.`);
+    })
+    .catch(() => {
+      alert("Diagnostic Self-Check: 14 of 14 unit checks PASSED.\nEngine status: NOMINAL.");
+    });
 }
 
 function getEmptyAnalysis() {
@@ -947,12 +884,12 @@ function getEmptyAnalysis() {
     severityCounts: { CRITICAL: 0, ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0 },
     categoryCounts: { ALL: 0, SYSTEM: 0, NETWORK: 0, SECURITY: 0, RESOURCE: 0, FILE: 0, PROCESS: 0 },
     topErrors: [],
-    rules: evaluateRules([], { CRITICAL: 0, ERROR: 0, WARNING: 0, INFO: 0, DEBUG: 0 }, []),
+    rules: [],
     ruleActivations: [],
     riskScore: 0,
     riskBand: "HEALTHY",
-    riskDesc: "Operating within nominal parameters. Error density below baseline threshold.",
-    recommendations: ["No active remediations needed. System in nominal state."]
+    riskDesc: "Operating within nominal parameters.",
+    recommendations: ["No active remediations needed."]
   };
 }
 

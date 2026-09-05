@@ -13,6 +13,7 @@ SRCS = main.cpp \
        src/recommendations.cpp \
        src/report.cpp \
        src/exporter.cpp \
+       src/server.cpp \
        src/tests.cpp
 
 BUILD_DIR = build
@@ -24,6 +25,9 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	@mkdir -p bin
 	$(CXX) $(CXXFLAGS) -o $@ $^
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		$(CXX) -std=c++17 -O2 -framework Cocoa -framework WebKit src/desktop_window.mm -o bin/desktop_app 2>/dev/null || true; \
+	fi
 
 $(BUILD_DIR)/%.o: %.cpp
 	@mkdir -p $(dir $@)
@@ -35,11 +39,8 @@ test: $(TARGET)
 demo: $(TARGET)
 	./$(TARGET) --demo
 
-gui:
-	@echo "Launching cross-platform GUI dashboard..."
-	@if [ "$$(uname)" = "Darwin" ]; then open gui/index.html; \
-	elif [ "$$(uname)" = "Linux" ]; then xdg-open gui/index.html; \
-	else start gui/index.html; fi
+gui: $(TARGET)
+	./$(TARGET) --gui
 
 clean:
 	rm -rf $(BUILD_DIR) bin

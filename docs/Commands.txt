@@ -55,15 +55,14 @@ make clean && make all
 
 
 --------------------------------------------------------------------------------
-7. LAUNCH CROSS-PLATFORM GUI DASHBOARD (Desktop / Browser - All GPOS)
+7. LAUNCH STANDALONE DESKTOP APPLICATION (GPOS Native Window - No Browser)
 --------------------------------------------------------------------------------
-# Launch via C++ CLI binary:
+# Launch via C++ CLI binary (opens dedicated desktop window):
 ./bin/log_analyzer --gui
 
 # Or launch directly via Makefile:
 make gui
 
-# Or open gui/index.html in any desktop browser directly.
 
 
 --------------------------------------------------------------------------------

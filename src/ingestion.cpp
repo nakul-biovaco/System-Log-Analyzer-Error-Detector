@@ -120,7 +120,7 @@ static std::vector<std::string> execute_command_lines(const std::string& cmd) {
 }
 
 std::vector<std::string> get_macos_historical(int minutes) {
-    std::string cmd = "log show --last " + std::to_string(minutes) + "m --style syslog 2>/dev/null";
+    std::string cmd = "/usr/bin/log show --last " + std::to_string(minutes) + "m --style syslog 2>/dev/null";
     std::cout << "Querying persistent unified log trace: " << cmd << "...\n";
     return execute_command_lines(cmd);
 }
@@ -152,7 +152,7 @@ std::vector<std::string> get_macos_live_stream(int seconds) {
             close(devnull);
         }
         close(pipefd[1]);
-        execlp("log", "log", "stream", "--style", "syslog", nullptr);
+        execlp("/usr/bin/log", "log", "stream", "--style", "syslog", nullptr);
         _exit(1);
     }
 
